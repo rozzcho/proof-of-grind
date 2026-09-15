@@ -9,9 +9,9 @@
 :root {
   --bg: #000;
   --cyan: #00f5f5;
-  --hover: #7dffc8;
-  --logo-size: clamp(72px, 10vw, 190px);
-  --logo-gap: clamp(12px, 3vw, 48px);
+  --hover: #d4d4d4;
+  --logo-size: clamp(60px, 8.5vw, 160px);
+  --logo-gap: clamp(10px, 2.5vw, 40px);
 
   font-family: 'Geist Pixel', ui-monospace, monospace;
   color: var(--cyan);
@@ -65,7 +65,7 @@ a:focus-visible,
 
 .brand-title {
   margin: 0;
-  font-size: clamp(40px, 7vw, 110px);
+  font-size: clamp(34px, 6vw, 92px);
   font-weight: 400;
   line-height: 1;
 }
@@ -77,9 +77,9 @@ a:focus-visible,
 }
 
 .wallet-adapter-button-trigger {
-  height: clamp(44px, 4.6vw, 64px);
-  padding: 0 clamp(20px, 2.4vw, 40px);
-  font-size: clamp(15px, 1.5vw, 22px);
+  height: clamp(38px, 3.9vw, 54px);
+  padding: 0 clamp(16px, 2vw, 34px);
+  font-size: clamp(13px, 1.3vw, 19px);
   background-color: #512da8;
   transition: background-color 120ms ease;
 }
@@ -94,8 +94,8 @@ a:focus-visible,
 }
 
 .discord-button img {
-  width: clamp(56px, 7vw, 88px);
-  height: clamp(56px, 7vw, 88px);
+  width: clamp(48px, 6vw, 74px);
+  height: clamp(48px, 6vw, 74px);
 }
 
 .discord-button:hover {
@@ -110,7 +110,7 @@ a:focus-visible,
   gap: 8px;
   margin-top: clamp(16px, 3vw, 40px);
   padding-left: calc(var(--logo-size) + var(--logo-gap));
-  font-size: clamp(18px, 2.4vw, 36px);
+  font-size: clamp(16px, 2vw, 30px);
 }
 
 .nav-item {
@@ -135,4 +135,166 @@ a:focus-visible,
   .nav-menu {
     padding-left: 0;
   }
+}
+
+button.nav-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+/* Payment modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  padding: 24px;
+  border: 2px solid var(--cyan);
+  background: var(--bg);
+  color: var(--cyan);
+  font-size: clamp(14px, 1.4vw, 18px);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 400;
+}
+
+.modal-close {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 1.6em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover:not(:disabled),
+.modal-pay:hover:not(:disabled) {
+  color: var(--hover);
+}
+
+.modal-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  margin: 24px 0;
+}
+
+.modal-rows dt {
+  opacity: 0.7;
+}
+
+.modal-rows dd {
+  margin: 0;
+  text-align: right;
+}
+
+.modal-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  overflow-wrap: anywhere;
+}
+
+.modal-message p {
+  margin: 0;
+}
+
+.modal-error {
+  color: #ff6b6b;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.modal-pay {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--cyan);
+  background: none;
+  color: var(--cyan);
+  font: inherit;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.modal-pay:hover:not(:disabled) {
+  border-color: var(--hover);
+}
+
+.modal-pay:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modal-close:focus-visible,
+.modal-pay:focus-visible,
+button.nav-link:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 4px;
+}
+
+.modal-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.modal-link:hover:not(:disabled) {
+  color: var(--hover);
+}
+
+.modal-link:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 4px;
+}
+
+.modal-discord {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal-discord img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.modal-discord .modal-link {
+  opacity: 0.7;
 }

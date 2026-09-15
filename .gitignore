@@ -8,3 +8,6 @@ test-ledger
 .surfpool
 app/dist
 .env
+.ledger
+server/.env
+server/.keys

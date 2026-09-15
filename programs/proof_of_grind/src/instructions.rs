@@ -1,5 +1,5 @@
-pub mod initialize;
-pub mod increment;
+pub mod create_challenge;
+pub mod register;
 
-pub use initialize::*;
-pub use increment::*;
+pub use create_challenge::*;
+pub use register::*;

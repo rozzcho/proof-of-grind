@@ -1,10 +1,28 @@
 use anchor_lang::prelude::*;
 
+/// Only this wallet can create challenges.
 #[constant]
-pub const COUNTER_SEED: &[u8] = b"counter";
+pub const ADMIN: Pubkey = pubkey!("Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf");
+
+/// Server key that co-signs `register` after verifying the Discord account via OAuth.
+#[constant]
+pub const VERIFIER: Pubkey = pubkey!("HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP");
+
+/// Circle devnet USDC.
+#[constant]
+pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 #[constant]
-pub const HELLO_WORLD_LAMPORTS: u64 = 1;
+pub const CHALLENGE_SEED: &[u8] = b"challenge";
 
 #[constant]
-pub const MAX_COUNT: u64 = 10;
+pub const PARTICIPANT_SEED: &[u8] = b"participant";
+
+#[constant]
+pub const DISCORD_SEED: &[u8] = b"discord";
+
+#[constant]
+pub const TRACK_WEEKLY: u8 = 0;
+
+#[constant]
+pub const TRACK_BIWEEKLY: u8 = 1;
