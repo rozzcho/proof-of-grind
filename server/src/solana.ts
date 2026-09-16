@@ -289,7 +289,13 @@ export async function rollover(fromId: number, toId: number) {
   return sendAsOracle(ix)
 }
 
-export type ParticipantRow = { discordId: string; user: PublicKey; tallied: boolean }
+export type ParticipantRow = {
+  discordId: string
+  user: PublicKey
+  tallied: boolean
+  claimed: boolean
+  daysCompleted: number
+}
 
 /** Everyone registered for a challenge, read from chain. */
 export async function participantsOf(challengeId: number): Promise<ParticipantRow[]> {
@@ -300,7 +306,37 @@ export async function participantsOf(challengeId: number): Promise<ParticipantRo
     discordId: row.account.discordId.toString(),
     user: row.account.user,
     tallied: row.account.tallied,
+    claimed: row.account.claimed,
+    daysCompleted: row.account.daysCompleted,
   }))
+}
+
+/**
+ * Every challenge this Discord account joined, newest first — found by the discord id stored in
+ * the participant account, so it keeps working for challenges that ended long ago.
+ * Participant layout: 8 discriminator + 32 challenge + 32 user, then the discord id.
+ */
+const DISCORD_ID_OFFSET = 8 + 32 + 32
+
+export async function myChallenges(discordId: string) {
+  const rows = await program.account.participant.all([
+    { memcmp: { offset: DISCORD_ID_OFFSET, bytes: anchor.utils.bytes.bs58.encode(u64le(discordId)) } },
+  ])
+  const joined = await Promise.all(
+    rows.map(async (row) => {
+      const challenge = await program.account.challenge.fetchNullable(row.account.challenge)
+      if (!challenge || challenge.track !== TRACK) return null
+      return {
+        challengeId: challenge.challengeId.toNumber(),
+        registeredAt: row.account.registeredAt.toNumber(),
+        claimed: row.account.claimed,
+        finalized: challenge.finalized,
+      }
+    }),
+  )
+  return joined
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => b.registeredAt - a.registeredAt)
 }
 
 export async function challengeState(challengeId: number) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useChallengeState } from '../lib/challenge'
 import { formatCountdown, type Challenge } from '../lib/schedule'
 
@@ -8,9 +8,11 @@ type Props = {
   /** Shown as a countdown to registration closing (= the challenge starting). */
   countdownTo?: number
   emptyText: string
+  /** Actions shown at the bottom of the card, e.g. a Register button. */
+  children?: ReactNode
 }
 
-function useCountdown(target?: number) {
+export function useCountdown(target?: number) {
   const [left, setLeft] = useState(() => (target ? target - Date.now() : 0))
   useEffect(() => {
     if (!target) return
@@ -25,7 +27,7 @@ function usdc(amount: number) {
   return `${amount.toFixed(2)} USDC`
 }
 
-export function ChallengeCard({ title, challenge, countdownTo, emptyText }: Props) {
+export function ChallengeCard({ title, challenge, countdownTo, emptyText, children }: Props) {
   const state = useChallengeState(challenge?.id ?? -1)
   const left = useCountdown(countdownTo)
 
@@ -50,6 +52,7 @@ export function ChallengeCard({ title, challenge, countdownTo, emptyText }: Prop
       ) : (
         <p className="card-empty">{emptyText}</p>
       )}
+      {children && <div className="card-actions">{children}</div>}
     </section>
   )
 }

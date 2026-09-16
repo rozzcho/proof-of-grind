@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { Transaction } from '@solana/web3.js'
-import { NETWORK_LABEL, WEEKLY, explorerTxUrl } from '../config'
+import { CHALLENGE, NETWORK_LABEL, explorerTxUrl } from '../config'
 import {
   DISCORD_LOGIN_URL,
   confirmRegistration,
@@ -62,9 +62,15 @@ function accessMessage(access: Access) {
   }
 }
 
-type Props = { challenge: OpenChallenge; open: boolean; discordError?: boolean }
+type Props = {
+  challenge: OpenChallenge
+  open: boolean
+  discordError?: boolean
+  /** Lets a surrounding modal refuse to close while a payment is in flight. */
+  onBusyChange?: (busy: boolean) => void
+}
 
-export function PaymentPanel({ challenge: openChallenge, open, discordError }: Props) {
+export function PaymentPanel({ challenge: openChallenge, open, discordError, onBusyChange }: Props) {
   const { connection } = useConnection()
   const { publicKey, signTransaction } = useWallet()
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
@@ -75,12 +81,13 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
   const [access, setAccess] = useState<Access>({ kind: 'idle' })
   const [multiply, setMultiply] = useState(1)
   const [showInfo, setShowInfo] = useState(false)
-  const challenge = useMemo(() => challengePda(WEEKLY.track, openChallenge.id), [openChallenge.id])
+  const challenge = useMemo(() => challengePda(CHALLENGE.track, openChallenge.id), [openChallenge.id])
 
   const busy = status.kind === 'paying' || access.kind === 'checking'
   const busyRef = useRef(busy)
   busyRef.current = busy
-  const total = WEEKLY.entryFeeUsdc * multiply
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange])
+  const total = CHALLENGE.entryFeeUsdc * multiply
   const discord = me?.discord ?? null
 
   const load = useCallback(async () => {
@@ -195,7 +202,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
     <div className="pay-box">
       <dl className="pay-rows">
         <dt>Entry fee</dt>
-        <dd>{WEEKLY.entryFeeUsdc} USDC</dd>
+        <dd>{CHALLENGE.entryFeeUsdc} USDC</dd>
         <dt className="pay-multiply-label">
           Multiply
           <button
@@ -223,8 +230,8 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
             <button
               type="button"
               aria-label="Increase multiply"
-              onClick={() => setMultiply((m) => Math.min(WEEKLY.maxMultiply, m + 1))}
-              disabled={!canEdit || multiply >= WEEKLY.maxMultiply}
+              onClick={() => setMultiply((m) => Math.min(CHALLENGE.maxMultiply, m + 1))}
+              disabled={!canEdit || multiply >= CHALLENGE.maxMultiply}
             >
               +
             </button>

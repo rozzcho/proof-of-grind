@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react'
-import { WEEKLY } from '../config'
+import { CHALLENGE } from '../config'
 
 export type Challenge = { id: number; label: string; startMs: number; endMs: number }
 export type OpenChallenge = Challenge
 
 function weekly(id: number): Challenge {
-  const startMs = WEEKLY.launchMs + id * WEEKLY.weekMs
-  return { id, label: `Weekly Challenge #${id}`, startMs, endMs: startMs + WEEKLY.weekMs }
+  const startMs = CHALLENGE.launchMs + id * CHALLENGE.durationMs
+  return { id, label: `${CHALLENGE.name} #${id}`, startMs, endMs: startMs + CHALLENGE.durationMs }
 }
 
 /** The weekly challenge taking registrations: it starts next Monday 00:00 UTC. */
 export function openWeeklyChallenge(now = Date.now()): Challenge {
-  return weekly(now < WEEKLY.launchMs ? 0 : Math.floor((now - WEEKLY.launchMs) / WEEKLY.weekMs) + 1)
+  return weekly(now < CHALLENGE.launchMs ? 0 : Math.floor((now - CHALLENGE.launchMs) / CHALLENGE.durationMs) + 1)
 }
 
 /** The challenge being run this week, or null before the first one starts. */
 export function runningWeeklyChallenge(now = Date.now()): Challenge | null {
-  return now < WEEKLY.launchMs ? null : weekly(Math.floor((now - WEEKLY.launchMs) / WEEKLY.weekMs))
+  return now < CHALLENGE.launchMs ? null : weekly(Math.floor((now - CHALLENGE.launchMs) / CHALLENGE.durationMs))
 }
 
 /** Seconds left as HH:MM:SS, counting hours past 24 (e.g. 56:45:03). */

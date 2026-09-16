@@ -35,9 +35,10 @@ export function NavToggle({ label, children, open: controlledOpen, onToggle }: P
   )
 }
 
-export function ToggleList({ items }: { items: ToggleItem[] }) {
+/** Numbered for real sequences (How to start); plain for facts that have no order (the summary). */
+export function ToggleList({ items, numbered = true }: { items: ToggleItem[]; numbered?: boolean }) {
   return (
-    <ol className="steps">
+    <ol className={numbered ? 'steps' : 'steps steps-plain'}>
       {items.map((item) => (
         <li key={item.title}>
           <div>

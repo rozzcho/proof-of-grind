@@ -1,5 +1,30 @@
 import type { ToggleItem } from './components/NavToggle'
-import { WEEKLY } from './config'
+import { CHALLENGE } from './config'
+
+const isWeekly = CHALLENGE.dayMs === 24 * 60 * 60 * 1000
+
+export const SUMMARY: ToggleItem[] = [
+  {
+    title: 'Entry',
+    body: `${CHALLENGE.entryFeeUsdc} USDC × your multiply (1x to ${CHALLENGE.maxMultiply}x). Registration closes when the challenge starts.`,
+  },
+  {
+    title: 'When',
+    body: isWeekly
+      ? 'Monday 00:00 to Sunday 23:59 UTC, seven days.'
+      : `${CHALLENGE.days} days of ${CHALLENGE.dayMs / 60_000} minutes each (test track).`,
+  },
+  {
+    title: 'To pass',
+    body: isWeekly
+      ? 'Camera on in the challenge voice channel for 3 hours a day, every day. Time adds up within the day; screen sharing does not count.'
+      : 'Camera on in the challenge voice channel for the daily goal, every day. Screen sharing does not count.',
+  },
+  {
+    title: 'Prize',
+    body: 'Winners split the prize pool (95% of entries, plus any rollover) by multiply. If nobody passes, it rolls over to the next challenge.',
+  },
+]
 
 export const HOW_TO_START: ToggleItem[] = [
   {
@@ -8,7 +33,7 @@ export const HOW_TO_START: ToggleItem[] = [
   },
   {
     title: 'Register for the challenge',
-    body: `Click "Register Weekly Challenge", link your Discord account, choose your multiply, and pay ${WEEKLY.entryFeeUsdc} USDC × multiply.`,
+    body: `Click "Register ${CHALLENGE.name}", link your Discord account, choose your multiply, and pay ${CHALLENGE.entryFeeUsdc} USDC × multiply.`,
   },
   {
     title: 'Join Discord',
@@ -46,7 +71,7 @@ export const RULES: ToggleItem[] = [
     body: 'Each weekly challenge runs Monday to Sunday. All days and times are in UTC.',
   },
   {
-    title: 'Nobody wins',
+    title: 'If nobody wins',
     body: 'If no one passes every day, the prize pool rolls over to the next challenge.',
   },
 ]

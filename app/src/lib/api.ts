@@ -38,9 +38,14 @@ export type ChallengeDay = { dayIndex: number; seconds: number; goalMet: boolean
 export type Progress = {
   track: number
   challengeId: number
+  registered: boolean
+  claimed: boolean
   running: boolean
+  over: boolean
   goalSeconds: number
   counting: boolean
+  /** Which day of the challenge is running now, or null outside it. */
+  currentDay: number | null
   days: ChallengeDay[]
 }
 

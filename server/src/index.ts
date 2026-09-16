@@ -8,12 +8,14 @@ import {
   RegistrationError,
   buildRegisterTx,
   challengeState,
+  dayIndexAt,
   faucetAddress,
   faucetBalanceSol,
   faucetConfigured,
   sendTestSol,
   walletBalanceSol,
   isDiscordRegistered,
+  myChallenges,
   openChallengeId,
   oracleAddress,
   oracleBalanceSol,
@@ -128,18 +130,31 @@ app.post('/api/register/confirm', async (c) => {
   }
 })
 
-// Progress of the logged-in Discord user in the challenge being run (or the next one).
+/**
+ * Progress in the challenge this user actually cares about: the one they are running, or a
+ * finished one they still have to claim. Falls back to the upcoming challenge.
+ */
 app.get('/api/progress', async (c) => {
   const session = await getSession(c)
   if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
+
   const running = runningChallengeId()
-  const challengeId = running ?? openChallengeId()
+  const open = openChallengeId()
+  const joined = await myChallenges(session.discordId)
+  // Newest first, but a reward still waiting to be claimed wins over one already claimed.
+  const mine = joined.find((entry) => !entry.claimed) ?? joined.at(0)
+  const challengeId = mine?.challengeId ?? running ?? open
+
   return c.json({
     track: TRACK,
     challengeId,
-    running: running !== null,
+    registered: Boolean(mine),
+    claimed: mine?.claimed ?? false,
+    running: challengeId === running,
+    over: challengeId < (running ?? open),
     goalSeconds: config.dailyGoalSeconds,
     counting: tracker.isActive(session.discordId),
+    currentDay: dayIndexAt(challengeId, Date.now()),
     days: tracker.challenge(session.discordId, TRACK, challengeId, trackConfig.days),
   })
 })

@@ -34,9 +34,9 @@ auth.get('/discord/login', async (c) => {
     redirect_uri: redirectUri,
     scope: 'identify guilds.join',
     state,
-    // `none` skips the consent screen for returning users; `consent` shows it again so the
-    // user can pick another account ("Not you?") when switching.
-    prompt: c.req.query('switch') ? 'consent' : 'none',
+    // Always show Discord's authorize screen: connecting an account should be a deliberate
+    // click, and it is also how someone switches to a different account ("Not you?").
+    prompt: 'consent',
   })
   return c.redirect(`https://discord.com/oauth2/authorize?${params}`)
 })

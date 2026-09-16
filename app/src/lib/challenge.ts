@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BorshAccountsCoder, type Idl } from '@anchor-lang/core'
 import { useConnection } from '@solana/wallet-adapter-react'
 import idl from '../idl/proof_of_grind.json'
-import { USDC_DECIMALS, WEEKLY } from '../config'
+import { CHALLENGE, USDC_DECIMALS } from '../config'
 import { challengePda } from './program'
 
 const coder = new BorshAccountsCoder(idl as unknown as Idl)
@@ -28,7 +28,7 @@ export function useChallengeState(challengeId: number, refreshMs = 30_000) {
     let cancelled = false
     const load = async () => {
       try {
-        const info = await connection.getAccountInfo(challengePda(WEEKLY.track, challengeId))
+        const info = await connection.getAccountInfo(challengePda(CHALLENGE.track, challengeId))
         if (cancelled) return
         if (!info) {
           setState(EMPTY)
