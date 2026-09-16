@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { ChannelType, Client, Events, GatewayIntentBits, type VoiceState } from 'discord.js'
 import { botConfigured, config } from './config.ts'
@@ -24,8 +25,9 @@ export type GrantResult = { roleGranted: boolean; joinedGuild: boolean; reason?:
 
 let client: Client | null = null
 
-mkdirSync(new URL('.', config.dbPath), { recursive: true })
-export const tracker = new GrindTracker(fileURLToPath(config.dbPath), config.dailyGoalSeconds)
+const dbPath = typeof config.dbPath === 'string' ? config.dbPath : fileURLToPath(config.dbPath)
+mkdirSync(dirname(dbPath), { recursive: true })
+export const tracker = new GrindTracker(dbPath, config.dailyGoalSeconds)
 
 const FLUSH_INTERVAL_MS = config.flushIntervalMs
 const PARTICIPANT_REFRESH_MS = 60_000

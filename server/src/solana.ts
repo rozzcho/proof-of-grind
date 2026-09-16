@@ -12,7 +12,7 @@ const idl = require('../../app/src/idl/proof_of_grind.json')
 export const connection = new Connection(config.rpcUrl, 'confirmed')
 
 const verifier = Keypair.fromSecretKey(
-  Uint8Array.from(JSON.parse(readFileSync(config.verifierKeyPath, 'utf8'))),
+  Uint8Array.from(JSON.parse(config.verifierSecretKey ?? readFileSync(config.verifierKeyPath, 'utf8'))),
 )
 
 // Read-only provider: the server never pays fees, it only co-signs.

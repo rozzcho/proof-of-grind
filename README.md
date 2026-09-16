@@ -78,3 +78,43 @@ NO_DNA=1 anchor build && cargo test -p proof_of_grind
 ```
 
 Discord invite link on the landing page: `DISCORD_INVITE_URL` in `app/src/config.ts`.
+
+## Deploying (devnet)
+
+Three pieces go live: the program on devnet, the server (API + Discord bot) on a host that keeps a
+process running, and the site on Vercel. The site talks to the server through Vercel rewrites, so both
+share one origin and the Discord login cookie keeps working.
+
+### 1. Program
+
+The deployer wallet needs ~4.5 devnet SOL (~2.2 stays locked as rent, the rest comes back).
+
+```bash
+./scripts/deploy-devnet.sh        # uses HELIUS_API_KEY from server/.env if present
+```
+
+### 2. Server (Railway)
+
+`server/Dockerfile` + `railway.json` are ready. In Railway: new project from this repo, add a volume
+mounted at `/data`, then set the variables from `server/.env.example` plus:
+
+- `VERIFIER_SECRET_KEY` — contents of `server/.keys/verifier.json` (a JSON array)
+- `DB_PATH=/data/grind.db`
+- `RPC_URL` — your Helius devnet URL
+- `APP_URL` — the site's https URL (this also switches cookies to Secure)
+
+### 3. Site (Vercel)
+
+- Root directory `app`, framework Vite
+- Environment: `VITE_SOLANA_NETWORK=devnet`, `VITE_RPC_URL=<your Helius devnet URL>`
+- Edit `app/vercel.json` and replace `REPLACE-WITH-SERVER-HOST` with the Railway domain
+
+### 4. Discord
+
+Add `<site URL>/auth/discord/callback` to the OAuth redirects in the Discord Developer Portal, and keep
+the local one for development.
+
+### 5. Testers
+
+Devnet USDC comes from [faucet.circle.com](https://faucet.circle.com) (pick Solana Devnet); devnet SOL for
+fees from [faucet.solana.com](https://faucet.solana.com).

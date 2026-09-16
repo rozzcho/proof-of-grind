@@ -12,3 +12,8 @@ app/dist
 server/.env
 server/.keys
 server/data
+
+# Vercel
+app/.vercel
+app/.env
+app/.env.local

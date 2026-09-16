@@ -1,0 +1,9 @@
+**/node_modules
+**/.env
+**/.keys
+**/data
+target
+.ledger
+app/dist
+programs
+tests

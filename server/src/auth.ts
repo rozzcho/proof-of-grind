@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie'
-import { config, oauthConfigured, redirectUri } from './config.ts'
+import { config, oauthConfigured, redirectUri, secureCookies } from './config.ts'
 
 export type Session = {
   discordId: string
@@ -15,7 +15,7 @@ const sessions = new Map<string, Session>()
 
 const SESSION_COOKIE = 'pog_session'
 const STATE_COOKIE = 'pog_oauth_state'
-const cookieOptions = { httpOnly: true, sameSite: 'Lax', path: '/', secure: false } as const
+const cookieOptions = { httpOnly: true, sameSite: 'Lax', path: '/', secure: secureCookies } as const
 
 export async function getSession(c: Context): Promise<Session | null> {
   const id = await getSignedCookie(c, config.sessionSecret, SESSION_COOKIE)

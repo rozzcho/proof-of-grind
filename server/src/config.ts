@@ -7,7 +7,9 @@ export const config = {
   appUrl: process.env.APP_URL ?? 'http://localhost:5173',
   rpcUrl: process.env.RPC_URL ?? 'http://127.0.0.1:8899',
   sessionSecret: optional('SESSION_SECRET') ?? crypto.randomUUID() + crypto.randomUUID(),
+  // Local dev keeps the key in a file; hosting providers pass it as a JSON array instead.
   verifierKeyPath: new URL('../.keys/verifier.json', import.meta.url),
+  verifierSecretKey: optional('VERIFIER_SECRET_KEY'),
   discord: {
     clientId: optional('DISCORD_CLIENT_ID'),
     clientSecret: optional('DISCORD_CLIENT_SECRET'),
@@ -20,8 +22,11 @@ export const config = {
   // 0 = weekly, 2 = the short test track (see the program's constants)
   challengeTrack: Number(process.env.CHALLENGE_TRACK ?? 0),
   flushIntervalMs: Number(process.env.FLUSH_INTERVAL_MS ?? 30_000),
-  dbPath: new URL('../data/grind.db', import.meta.url),
+  dbPath: process.env.DB_PATH ?? new URL('../data/grind.db', import.meta.url),
 }
+
+/** Cookies must be Secure when the site is served over https. */
+export const secureCookies = config.appUrl.startsWith('https://')
 
 // OAuth callback goes through the app origin (Vite proxies /auth) so cookies stay first-party.
 export const redirectUri = `${config.appUrl}/auth/discord/callback`

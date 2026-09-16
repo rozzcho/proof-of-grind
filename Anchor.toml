@@ -9,6 +9,9 @@ skip-lint = false
 [programs.localnet]
 proof_of_grind = "xCXUMjagsYgaVK8XLW4Wz9kbrswAsd5s3TPCGDsAFUG"
 
+[programs.devnet]
+proof_of_grind = "xCXUMjagsYgaVK8XLW4Wz9kbrswAsd5s3TPCGDsAFUG"
+
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"

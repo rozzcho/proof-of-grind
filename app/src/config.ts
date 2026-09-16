@@ -4,9 +4,10 @@ import idl from './idl/proof_of_grind.json'
 // Discord invite link — edit here
 export const DISCORD_INVITE_URL = 'https://discord.gg/REPLACE_ME'
 
-// Local validator (scripts/local-validator.sh). Switch to clusterApiUrl('devnet') later.
-export const RPC_ENDPOINT = 'http://127.0.0.1:8899'
-export const NETWORK_LABEL = 'Localnet'
+// Defaults target the local validator (scripts/local-validator.sh); deployments set VITE_*.
+export const RPC_ENDPOINT = import.meta.env.VITE_RPC_URL ?? 'http://127.0.0.1:8899'
+export const NETWORK = import.meta.env.VITE_SOLANA_NETWORK ?? 'localnet'
+export const NETWORK_LABEL = NETWORK === 'devnet' ? 'Devnet' : NETWORK === 'mainnet' ? 'Mainnet' : 'Localnet'
 
 function idlConstant(name: string): string {
   const constant = idl.constants.find((c) => c.name === name)
@@ -27,5 +28,11 @@ export const WEEKLY = {
 }
 
 export function explorerTxUrl(signature: string) {
-  return `https://explorer.solana.com/tx/${signature}?cluster=custom&customUrl=${encodeURIComponent(RPC_ENDPOINT)}`
+  const cluster =
+    NETWORK === 'mainnet'
+      ? ''
+      : NETWORK === 'devnet'
+        ? '?cluster=devnet'
+        : `?cluster=custom&customUrl=${encodeURIComponent(RPC_ENDPOINT)}`
+  return `https://explorer.solana.com/tx/${signature}${cluster}`
 }
