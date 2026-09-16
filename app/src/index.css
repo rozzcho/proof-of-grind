@@ -198,6 +198,13 @@ button.nav-link {
   transition: color 120ms ease, border-color 120ms ease;
 }
 
+a.pay-button {
+  display: block;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+}
+
 .pay-button + .pay-button {
   margin-top: 10px;
 }
@@ -323,6 +330,12 @@ button.nav-link:focus-visible {
   font-size: clamp(13px, 1.1vw, 16px);
 }
 
+/* Tall enough for the fullest state (registered, with Claim), so connecting a wallet
+   or registering never resizes the cards. */
+.cards > .card {
+  min-height: 23.1em;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -432,11 +445,23 @@ button.nav-link:focus-visible {
 
 /* Inside a card the payment form needs no frame of its own. */
 .card .pay-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   margin: 0;
   padding: 0;
   border: 0;
   font-size: inherit;
+}
+
+.card .pay-actions {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.card .pay-actions > .pay-message {
+  margin-bottom: 10px;
 }
 
 @media (max-width: 900px) {
@@ -646,4 +671,60 @@ button.nav-link:focus-visible {
   .nav-panel {
     transition: none;
   }
+}
+
+/* "- date" row: start ~ end on one line, with a local/UTC switch */
+.card-rows dd.card-dates {
+  white-space: nowrap;
+}
+
+/* Narrow cards shrink the dates a little instead of wrapping them. */
+.card {
+  container-type: inline-size;
+}
+
+@container (max-width: 275px) {
+  .card-rows dd.card-dates { font-size: 0.85em; }
+}
+
+@container (max-width: 250px) {
+  .card-rows dd.card-dates { font-size: 0.78em; }
+}
+
+.contact-list a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  transition: color 120ms ease;
+}
+
+.contact-list a:hover {
+  color: var(--hover);
+}
+
+.zone-toggle {
+  padding: 0 0.3em;
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8em;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: color 120ms ease, opacity 120ms ease;
+}
+
+.zone-toggle:hover {
+  color: var(--hover);
+  opacity: 1;
+}
+
+.zone-toggle:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 2px;
+}
+
+.card-center {
+  text-align: center;
+  text-wrap: balance;
 }

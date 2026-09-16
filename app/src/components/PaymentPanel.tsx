@@ -47,12 +47,12 @@ function errorMessage(err: unknown): string {
 function accessMessage(access: Access) {
   switch (access.kind) {
     case 'checking':
-      return 'Unlocking the private Discord room…'
+      return 'Unlocking room…'
     case 'failed':
       return "Couldn't reach Discord. Try again."
     case 'done': {
-      const { roleGranted, joinedGuild, reason } = access.result
-      if (roleGranted) return joinedGuild ? 'Joined the Discord server. Private room unlocked.' : 'Private room unlocked on Discord.'
+      const { roleGranted, reason } = access.result
+      if (roleGranted) return 'Room unlocked!'
       if (reason === 'bot-not-configured') return 'The Discord bot is offline. Your role will be given once it is running.'
       if (reason === 'not-in-guild') return 'Join the Discord server, then check again.'
       return "Couldn't give the Discord role. Try again."
@@ -68,9 +68,11 @@ type Props = {
   discordError?: boolean
   /** Lets a surrounding modal refuse to close while a payment is in flight. */
   onBusyChange?: (busy: boolean) => void
+  /** Whether the connected wallet is registered for this challenge (null while unknown). */
+  onRegisteredChange?: (registered: boolean | null) => void
 }
 
-export function PaymentPanel({ challenge: openChallenge, open, discordError, onBusyChange }: Props) {
+export function PaymentPanel({ challenge: openChallenge, open, discordError, onBusyChange, onRegisteredChange }: Props) {
   const { connection } = useConnection()
   const { publicKey, signTransaction } = useWallet()
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
@@ -87,6 +89,9 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const busyRef = useRef(busy)
   busyRef.current = busy
   useEffect(() => onBusyChange?.(busy), [busy, onBusyChange])
+  const registered =
+    status.kind === 'registered' || status.kind === 'success' ? true : status.kind === 'ready' ? false : null
+  useEffect(() => onRegisteredChange?.(registered), [registered, onRegisteredChange])
   const total = CHALLENGE.entryFeeUsdc * multiply
   const discord = me?.discord ?? null
 
@@ -198,6 +203,59 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const accessText = accessMessage(access)
   const canRetryAccess = access.kind === 'failed' || (access.kind === 'done' && !access.result.roleGranted)
 
+  const done = status.kind === 'success' || status.kind === 'registered'
+
+  // At most one message at a time, most important first.
+  const message: { text: string; error?: boolean } | null = done
+    ? { text: `Registered. ${accessText ?? 'Start grinding!'}` }
+    : status.kind === 'error'
+      ? { text: status.message, error: true }
+      : discordError && !discord
+        ? { text: 'Discord login failed. Try again.', error: true }
+        : me && !me.oauthConfigured && !discord
+          ? { text: 'Discord login is not set up yet.', error: true }
+          : me?.oauthConfigured && !discord
+            ? { text: 'Connect Discord to pay.' }
+            : needsSol
+              ? { text: 'You need a little SOL for fees.' }
+              : insufficient && status.kind !== 'loading'
+                ? { text: 'Not enough USDC.', error: true }
+                : null
+
+  const action = done ? (
+    discord && (canRetryAccess || (status.kind === 'registered' && access.kind === 'idle')) ? (
+      <button type="button" className="pay-button" onClick={unlockDiscord}>
+        {status.kind === 'success' ? 'Retry Discord access' : 'Check Discord access'}
+      </button>
+    ) : status.kind === 'success' ? (
+      <a
+        className="pay-button"
+        href={explorerTxUrl(status.signature)}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View transaction
+      </a>
+    ) : (
+      <button type="button" className="pay-button" data-state="done" disabled>
+        {access.kind === 'checking' ? 'Unlocking…' : 'Registered'}
+      </button>
+    )
+  ) : needsSol && discord ? (
+    <button type="button" className="pay-button" onClick={getTestSol} disabled={funding}>
+      {funding ? 'Sending…' : 'Get test SOL'}
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="pay-button"
+      onClick={pay}
+      disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol}
+    >
+      {status.kind === 'paying' ? 'Processing…' : `Pay ${formatUsdc(total)} USDC`}
+    </button>
+  )
+
   return (
     <div className="pay-box">
       <dl className="pay-rows">
@@ -271,57 +329,14 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
         <dd>{NETWORK_LABEL}</dd>
       </dl>
 
-      {status.kind === 'success' ? (
-        <div className="pay-message">
-          <p>Registered. Start grinding!</p>
-          {accessText && <p>{accessText}</p>}
-          <a className="pay-link" href={explorerTxUrl(status.signature)} target="_blank" rel="noopener noreferrer">
-            View transaction
-          </a>
-        </div>
-      ) : status.kind === 'registered' ? (
-        <div className="pay-message">
-          <p>You are already registered.</p>
-          {accessText && <p>{accessText}</p>}
-        </div>
-      ) : (
-        <>
-          {discordError && !discord && <p className="pay-message pay-error">Discord login failed. Try again.</p>}
-          {me && !me.oauthConfigured && !discord && (
-            <p className="pay-message pay-error">Discord login is not set up on the server yet.</p>
-          )}
-          {me?.oauthConfigured && !discord && <p className="pay-message">Connect Discord to pay.</p>}
-          {needsSol && discord && (
-            <>
-              <p className="pay-message">Your wallet needs a little SOL for network fees.</p>
-              <button type="button" className="pay-button" onClick={getTestSol} disabled={funding}>
-                {funding ? 'Sending…' : 'Get test SOL'}
-              </button>
-            </>
-          )}
-          {status.kind === 'error' && <p className="pay-message pay-error">{status.message}</p>}
-          {insufficient && status.kind !== 'loading' && <p className="pay-message pay-error">Not enough USDC.</p>}
-          <button
-            type="button"
-            className="pay-button"
-            onClick={pay}
-            disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol}
-          >
-            {status.kind === 'paying' ? 'Processing…' : `Pay ${formatUsdc(total)} USDC`}
-          </button>
-        </>
-      )}
-
-      {status.kind === 'registered' && discord && (access.kind === 'idle' || canRetryAccess) && (
-        <button type="button" className="pay-button" onClick={unlockDiscord}>
-          Check Discord access
-        </button>
-      )}
-      {status.kind === 'success' && canRetryAccess && (
-        <button type="button" className="pay-button" onClick={unlockDiscord}>
-          Retry Discord access
-        </button>
-      )}
+      {/* Pinned to the bottom: one message line and one button, so the card never changes height
+          and Pay sits exactly where the Register button was. */}
+      <div className="pay-actions">
+        <p className={message?.error ? 'pay-message pay-error' : 'pay-message'} aria-live="polite">
+          {message?.text ?? '\u00a0'}
+        </p>
+        {action}
+      </div>
     </div>
   )
 }

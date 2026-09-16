@@ -32,6 +32,7 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
   const [pending, setPending] = useState(false)
   const [registering, setRegistering] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [registered, setRegistered] = useState<boolean | null>(null)
 
   // Back from Discord: wait for wallet auto-connect, then reopen the form.
   useEffect(() => {
@@ -61,7 +62,10 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
   }, [pending, connected, walletModalVisible])
 
   useEffect(() => {
-    if (!connected) setRegistering(false)
+    if (!connected) {
+      setRegistering(false)
+      setRegistered(null)
+    }
   }, [connected])
 
   const back = useCallback(() => {
@@ -93,7 +97,7 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
       <div className="card-pane" aria-hidden={showForm} inert={showForm} data-active={!showForm}>
         <ChallengeCardBody title="Next Challenge" challenge={challenge} countdownTo={challenge.startMs} emptyText="">
           <button type="button" className="pay-button" onClick={start}>
-            Register
+            {registered ? 'View registration' : 'Register'}
           </button>
         </ChallengeCardBody>
       </div>
@@ -108,7 +112,7 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
           <button type="button" className="card-back" onClick={back} disabled={busy}>
             ← Back
           </button>
-          <h2 className="card-title">Register</h2>
+          <h2 className="card-title">{registered ? 'Registration' : 'Register'}</h2>
         </div>
         <p className="card-subject">{challenge.label}</p>
         {/* keyed by challenge so the form resets when registration rolls over */}
@@ -119,6 +123,7 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
           open
           discordError={returned.discordError}
           onBusyChange={setBusy}
+          onRegisteredChange={setRegistered}
         />
       </div>
     </section>

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useChallengeState } from '../lib/challenge'
 import { formatCountdown, type Challenge } from '../lib/schedule'
+import { formatDateTime, useTimeZoneMode } from '../lib/timeZone'
 
 type Props = {
   title: string
@@ -27,11 +28,28 @@ function usdc(amount: number) {
   return `${amount.toFixed(2)} USDC`
 }
 
-export function ChallengeCard(props: Props) {
+/** The "- date" row: start and end in local time or UTC, switched by the button. */
+export function ChallengeDates({ challenge }: { challenge: Challenge }) {
+  const [zone, toggleZone] = useTimeZoneMode()
+  // The last minute of the challenge, matching "Sunday 23:59" in the rules.
+  const lastMinuteMs = challenge.endMs - 60_000
   return (
-    <section className="card">
-      <ChallengeCardBody {...props} />
-    </section>
+    <>
+      <dt>
+        date{' '}
+        <button
+          type="button"
+          className="zone-toggle"
+          onClick={toggleZone}
+          aria-label={`Showing ${zone === 'utc' ? 'UTC' : 'local time'}. Switch.`}
+        >
+          {zone === 'utc' ? 'utc' : 'local'}
+        </button>
+      </dt>
+      <dd className="card-dates">
+        {formatDateTime(challenge.startMs, zone)} ~ {formatDateTime(lastMinuteMs, zone)}
+      </dd>
+    </>
   )
 }
 
@@ -52,6 +70,7 @@ export function ChallengeCardBody({ title, challenge, countdownTo, emptyText, ch
         <>
           <p className="card-subject">{challenge.label}</p>
           <dl className="card-rows">
+            <ChallengeDates challenge={challenge} />
             <dt>participants</dt>
             <dd>{state ? state.participants : '…'}</dd>
             <dt>prize pool</dt>
