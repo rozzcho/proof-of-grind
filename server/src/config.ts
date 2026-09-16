@@ -4,7 +4,8 @@ function optional(name: string) {
 
 export const config = {
   port: Number(process.env.PORT ?? 8787),
-  appUrl: process.env.APP_URL ?? 'http://localhost:5173',
+  // A trailing slash would produce '//auth/discord/callback', which Discord rejects.
+  appUrl: (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, ''),
   rpcUrl: process.env.RPC_URL ?? 'http://127.0.0.1:8899',
   sessionSecret: optional('SESSION_SECRET') ?? crypto.randomUUID() + crypto.randomUUID(),
   // Local dev keeps the key in a file; hosting providers pass it as a JSON array instead.
