@@ -15,6 +15,13 @@ export function utcWeekStart(ms: number) {
 
 export type DayProgress = { day: string; seconds: number; goalMet: boolean }
 
+/** Which challenge day a moment belongs to; `endMs` is when that day ends. */
+export type Slot = { track: number; challengeId: number; dayIndex: number; endMs: number }
+export type SlotResolver = (discordId: string, atMs: number) => Slot | null
+
+export type PendingRecord = { discordId: string; track: number; challengeId: number; dayIndex: number }
+export type ChallengeDay = { dayIndex: number; seconds: number; goalMet: boolean; recorded: boolean }
+
 /**
  * Accumulates counted voice time per Discord user per UTC day.
  * A user is "active" while counting; time is credited on stop and on periodic flushes,
@@ -24,9 +31,11 @@ export class GrindTracker {
   readonly goalMs: number
   #db: DatabaseSync
   #active = new Map<string, number>() // discordId -> last credited timestamp (ms)
+  #slotOf: SlotResolver = () => null
 
-  constructor(path: string, goalSeconds: number) {
+  constructor(path: string, goalSeconds: number, slotOf?: SlotResolver) {
     this.goalMs = goalSeconds * 1000
+    if (slotOf) this.#slotOf = slotOf
     this.#db = new DatabaseSync(path)
     this.#db.exec(`
       CREATE TABLE IF NOT EXISTS daily_time (
@@ -37,6 +46,74 @@ export class GrindTracker {
         PRIMARY KEY (discord_id, day)
       )
     `)
+    // Same time, bucketed by challenge day — this is what gets recorded on chain.
+    this.#db.exec(`
+      CREATE TABLE IF NOT EXISTS challenge_progress (
+        discord_id TEXT NOT NULL,
+        track INTEGER NOT NULL,
+        challenge_id INTEGER NOT NULL,
+        day_index INTEGER NOT NULL,
+        ms INTEGER NOT NULL DEFAULT 0,
+        goal_reached_at INTEGER,
+        recorded_at INTEGER,
+        PRIMARY KEY (discord_id, track, challenge_id, day_index)
+      )
+    `)
+  }
+
+  /** Tells the tracker which challenge day a participant's time belongs to. */
+  setSlotResolver(slotOf: SlotResolver) {
+    this.#slotOf = slotOf
+  }
+
+  /** Days that hit the goal but are not on chain yet. */
+  pendingRecords(): PendingRecord[] {
+    const rows = this.#db
+      .prepare(
+        `SELECT discord_id, track, challenge_id, day_index FROM challenge_progress
+         WHERE goal_reached_at IS NOT NULL AND recorded_at IS NULL`,
+      )
+      .all() as { discord_id: string; track: number; challenge_id: number; day_index: number }[]
+    return rows.map((r) => ({
+      discordId: r.discord_id,
+      track: r.track,
+      challengeId: r.challenge_id,
+      dayIndex: r.day_index,
+    }))
+  }
+
+  markRecorded(record: PendingRecord, now = Date.now()) {
+    this.#db
+      .prepare(
+        `UPDATE challenge_progress SET recorded_at = ?
+         WHERE discord_id = ? AND track = ? AND challenge_id = ? AND day_index = ?`,
+      )
+      .run(now, record.discordId, record.track, record.challengeId, record.dayIndex)
+  }
+
+  /** Per-day progress for one challenge. */
+  challenge(discordId: string, track: number, challengeId: number, days: number): ChallengeDay[] {
+    const rows = this.#db
+      .prepare(
+        `SELECT day_index, ms, goal_reached_at, recorded_at FROM challenge_progress
+         WHERE discord_id = ? AND track = ? AND challenge_id = ?`,
+      )
+      .all(discordId, track, challengeId) as {
+      day_index: number
+      ms: number
+      goal_reached_at: number | null
+      recorded_at: number | null
+    }[]
+    const byDay = new Map(rows.map((r) => [r.day_index, r]))
+    return Array.from({ length: days }, (_, dayIndex) => {
+      const row = byDay.get(dayIndex)
+      return {
+        dayIndex,
+        seconds: Math.floor((row?.ms ?? 0) / 1000),
+        goalMet: (row?.ms ?? 0) >= this.goalMs,
+        recorded: row?.recorded_at != null,
+      }
+    })
   }
 
   isActive(discordId: string) {
@@ -87,20 +164,43 @@ export class GrindTracker {
   }
 
   #credit(discordId: string, from: number, to: number) {
-    const upsert = this.#db.prepare(`
+    const upsertDay = this.#db.prepare(`
       INSERT INTO daily_time (discord_id, day, ms) VALUES (?, ?, ?)
       ON CONFLICT (discord_id, day) DO UPDATE SET ms = ms + excluded.ms
       RETURNING ms, goal_reached_at
     `)
-    const markGoal = this.#db.prepare('UPDATE daily_time SET goal_reached_at = ? WHERE discord_id = ? AND day = ?')
+    const markDayGoal = this.#db.prepare('UPDATE daily_time SET goal_reached_at = ? WHERE discord_id = ? AND day = ?')
+    const upsertSlot = this.#db.prepare(`
+      INSERT INTO challenge_progress (discord_id, track, challenge_id, day_index, ms) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT (discord_id, track, challenge_id, day_index) DO UPDATE SET ms = ms + excluded.ms
+      RETURNING ms, goal_reached_at
+    `)
+    const markSlotGoal = this.#db.prepare(
+      `UPDATE challenge_progress SET goal_reached_at = ?
+       WHERE discord_id = ? AND track = ? AND challenge_id = ? AND day_index = ?`,
+    )
 
     while (from < to) {
-      const segmentEnd = Math.min(to, (Math.floor(from / DAY_MS) + 1) * DAY_MS)
+      const slot = this.#slotOf(discordId, from)
+      // Never let a segment span a UTC midnight or a challenge day boundary.
+      const segmentEnd = Math.min(to, (Math.floor(from / DAY_MS) + 1) * DAY_MS, slot?.endMs ?? Infinity)
       const day = utcDay(from)
-      const row = upsert.get(discordId, day, segmentEnd - from) as { ms: number; goal_reached_at: number | null }
-      if (row.ms >= this.goalMs && row.goal_reached_at === null) {
-        markGoal.run(segmentEnd, discordId, day)
-        console.log(`[tracker] ${discordId} reached the daily goal for ${day}`)
+      const dayRow = upsertDay.get(discordId, day, segmentEnd - from) as { ms: number; goal_reached_at: number | null }
+      if (dayRow.ms >= this.goalMs && dayRow.goal_reached_at === null) {
+        markDayGoal.run(segmentEnd, discordId, day)
+      }
+
+      if (slot) {
+        const row = upsertSlot.get(discordId, slot.track, slot.challengeId, slot.dayIndex, segmentEnd - from) as {
+          ms: number
+          goal_reached_at: number | null
+        }
+        if (row.ms >= this.goalMs && row.goal_reached_at === null) {
+          markSlotGoal.run(segmentEnd, discordId, slot.track, slot.challengeId, slot.dayIndex)
+          console.log(
+            `[tracker] ${discordId} passed day ${slot.dayIndex} of challenge #${slot.challengeId}`,
+          )
+        }
       }
       from = segmentEnd
     }

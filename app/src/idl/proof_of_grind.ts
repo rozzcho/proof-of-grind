@@ -14,6 +14,154 @@ export type ProofOfGrind = {
   },
   "instructions": [
     {
+      "name": "claim",
+      "docs": [
+        "A winner withdraws their share of the prize pool."
+      ],
+      "discriminator": [
+        62,
+        198,
+        214,
+        193,
+        213,
+        159,
+        108,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "challenge",
+          "writable": true,
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "challenge"
+          ]
+        },
+        {
+          "name": "userTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "recordProgress",
+      "docs": [
+        "Marks one day as passed for a participant."
+      ],
+      "discriminator": [
+        116,
+        126,
+        203,
+        83,
+        23,
+        114,
+        161,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "writable": true,
+          "signer": true,
+          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+        },
+        {
+          "name": "challenge",
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "dayIndex",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "register",
       "docs": [
         "Pays `entry_fee × multiply` into the challenge vault and joins the pool."
@@ -198,6 +346,286 @@ export type ProofOfGrind = {
           "type": "u8"
         }
       ]
+    },
+    {
+      "name": "rollover",
+      "docs": [
+        "Moves the prize pool of a challenge nobody won into a later one."
+      ],
+      "discriminator": [
+        147,
+        98,
+        248,
+        23,
+        82,
+        182,
+        25,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "from",
+          "writable": true
+        },
+        {
+          "name": "to",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "from",
+            "to"
+          ]
+        },
+        {
+          "name": "fromVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "from"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "toVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "to"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "tokenProgram"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "tally",
+      "docs": [
+        "Counts one participant after the challenge ends; the last one finalizes it."
+      ],
+      "discriminator": [
+        152,
+        106,
+        131,
+        171,
+        155,
+        62,
+        41,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "participant",
+          "writable": true
+        },
+        {
+          "name": "challenge",
+          "writable": true,
+          "relations": [
+            "participant"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdrawFees",
+      "docs": [
+        "Sends the platform fee and rounding dust to the treasury."
+      ],
+      "discriminator": [
+        198,
+        212,
+        171,
+        109,
+        144,
+        215,
+        174,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "signer": true,
+          "address": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
+        },
+        {
+          "name": "challenge",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "challenge"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "tokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasuryTokenAccount",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -245,7 +673,7 @@ export type ProofOfGrind = {
     {
       "code": 6000,
       "name": "invalidTrack",
-      "msg": "Only the weekly track is open"
+      "msg": "Unknown challenge track"
     },
     {
       "code": 6001,
@@ -264,6 +692,66 @@ export type ProofOfGrind = {
     },
     {
       "code": 6004,
+      "name": "invalidDay",
+      "msg": "That day is not part of this challenge"
+    },
+    {
+      "code": 6005,
+      "name": "dayNotStarted",
+      "msg": "That day has not started yet"
+    },
+    {
+      "code": 6006,
+      "name": "recordingClosed",
+      "msg": "Progress can no longer be recorded for this challenge"
+    },
+    {
+      "code": 6007,
+      "name": "challengeNotOver",
+      "msg": "The challenge is still running"
+    },
+    {
+      "code": 6008,
+      "name": "alreadyTallied",
+      "msg": "This participant was already counted"
+    },
+    {
+      "code": 6009,
+      "name": "notFinalized",
+      "msg": "Every participant must be counted first"
+    },
+    {
+      "code": 6010,
+      "name": "notAWinner",
+      "msg": "Only participants who passed every day can claim"
+    },
+    {
+      "code": 6011,
+      "name": "alreadyClaimed",
+      "msg": "Already claimed"
+    },
+    {
+      "code": 6012,
+      "name": "claimsPending",
+      "msg": "Everyone must claim before fees can be withdrawn"
+    },
+    {
+      "code": 6013,
+      "name": "nothingToRollOver",
+      "msg": "This challenge has winners, so nothing rolls over"
+    },
+    {
+      "code": 6014,
+      "name": "alreadyRolledOver",
+      "msg": "The prize pool already rolled over"
+    },
+    {
+      "code": 6015,
+      "name": "invalidRolloverTarget",
+      "msg": "The prize pool can only roll over into a later challenge on the same track"
+    },
+    {
+      "code": 6016,
       "name": "mathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -308,13 +796,53 @@ export type ProofOfGrind = {
           {
             "name": "totalShares",
             "docs": [
-              "Sum of every participant's multiply; rewards are split by these shares."
+              "Sum of every participant's multiply."
             ],
             "type": "u64"
           },
           {
             "name": "totalDeposited",
+            "docs": [
+              "Everything paid in: the entry pool."
+            ],
             "type": "u64"
+          },
+          {
+            "name": "carryOver",
+            "docs": [
+              "Prize pool rolled over from an earlier challenge nobody won."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "winnerShares",
+            "docs": [
+              "Sum of the winners' multiply; rewards are split by these shares."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "winnerCount",
+            "type": "u32"
+          },
+          {
+            "name": "talliedCount",
+            "type": "u32"
+          },
+          {
+            "name": "claimedCount",
+            "type": "u32"
+          },
+          {
+            "name": "finalized",
+            "docs": [
+              "Every participant has been counted, so the winners are known."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "rolledOver",
+            "type": "bool"
           },
           {
             "name": "bump",
@@ -380,6 +908,21 @@ export type ProofOfGrind = {
             "type": "i64"
           },
           {
+            "name": "daysCompleted",
+            "docs": [
+              "One bit per day of the challenge; all bits set means they passed."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "tallied",
+            "type": "bool"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -399,6 +942,14 @@ export type ProofOfGrind = {
       "value": "[100, 105, 115, 99, 111, 114, 100]"
     },
     {
+      "name": "feeBps",
+      "docs": [
+        "Platform + exchange fee, in basis points of the entry pool."
+      ],
+      "type": "u64",
+      "value": "500"
+    },
+    {
       "name": "maxMultiply",
       "type": "u8",
       "value": "10"
@@ -409,9 +960,61 @@ export type ProofOfGrind = {
       "value": "[112, 97, 114, 116, 105, 99, 105, 112, 97, 110, 116]"
     },
     {
+      "name": "payoutUnit",
+      "docs": [
+        "Rewards are rounded down to 0.01 USDC."
+      ],
+      "type": "u64",
+      "value": "10000"
+    },
+    {
+      "name": "testDays",
+      "type": "u8",
+      "value": "5"
+    },
+    {
+      "name": "testDaySeconds",
+      "type": "i64",
+      "value": "120"
+    },
+    {
+      "name": "testDuration",
+      "type": "i64",
+      "value": "600"
+    },
+    {
+      "name": "testEntryFee",
+      "type": "u64",
+      "value": "1000000"
+    },
+    {
+      "name": "testLaunchTs",
+      "docs": [
+        "Test challenges run every 10 minutes, with five 2-minute \"days\"."
+      ],
+      "type": "i64",
+      "value": "0"
+    },
+    {
+      "name": "trackTest",
+      "docs": [
+        "Short track for testing the full cycle without waiting a week."
+      ],
+      "type": "u8",
+      "value": "2"
+    },
+    {
       "name": "trackWeekly",
       "type": "u8",
       "value": "0"
+    },
+    {
+      "name": "treasury",
+      "docs": [
+        "Receives the platform fee and leftover rounding dust."
+      ],
+      "type": "pubkey",
+      "value": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
     },
     {
       "name": "usdcMint",
@@ -424,10 +1027,20 @@ export type ProofOfGrind = {
     {
       "name": "verifier",
       "docs": [
-        "Server key that co-signs `register` after verifying the Discord account via OAuth."
+        "Server key: co-signs `register` after verifying the Discord account, and records daily progress."
       ],
       "type": "pubkey",
       "value": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+    },
+    {
+      "name": "weeklyDays",
+      "type": "u8",
+      "value": "7"
+    },
+    {
+      "name": "weeklyDaySeconds",
+      "type": "i64",
+      "value": "86400"
     },
     {
       "name": "weeklyEntryFee",

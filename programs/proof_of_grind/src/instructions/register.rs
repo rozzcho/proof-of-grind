@@ -74,20 +74,20 @@ pub fn handle_register(
     discord_id: u64,
     multiply: u8,
 ) -> Result<()> {
-    require!(track == TRACK_WEEKLY, ErrorCode::InvalidTrack);
+    let config = track_config(track).ok_or(ErrorCode::InvalidTrack)?;
     require!((1..=MAX_MULTIPLY).contains(&multiply), ErrorCode::InvalidMultiply);
 
     let start_ts = i64::try_from(challenge_id)
         .ok()
-        .and_then(|id| id.checked_mul(WEEK_SECONDS))
-        .and_then(|offset| offset.checked_add(WEEKLY_LAUNCH_TS))
+        .and_then(|id| id.checked_mul(config.duration))
+        .and_then(|offset| offset.checked_add(config.launch_ts))
         .ok_or(ErrorCode::MathOverflow)?;
-    let end_ts = start_ts.checked_add(WEEK_SECONDS).ok_or(ErrorCode::MathOverflow)?;
+    let end_ts = start_ts.checked_add(config.duration).ok_or(ErrorCode::MathOverflow)?;
 
     // Only the next challenge takes registrations: from when the previous one starts until this one starts.
     let now = Clock::get()?.unix_timestamp;
     require!(
-        now < start_ts && now >= start_ts - WEEK_SECONDS,
+        now < start_ts && now >= start_ts - config.duration,
         ErrorCode::RegistrationClosed
     );
 
@@ -97,12 +97,19 @@ pub fn handle_register(
             track,
             challenge_id,
             mint: ctx.accounts.mint.key(),
-            entry_fee: WEEKLY_ENTRY_FEE,
+            entry_fee: config.entry_fee,
             start_ts,
             end_ts,
             participant_count: 0,
             total_shares: 0,
             total_deposited: 0,
+            carry_over: 0,
+            winner_shares: 0,
+            winner_count: 0,
+            tallied_count: 0,
+            claimed_count: 0,
+            finalized: false,
+            rolled_over: false,
             bump: ctx.bumps.challenge,
         });
     }
@@ -147,6 +154,9 @@ pub fn handle_register(
         multiply,
         amount_paid: amount,
         registered_at: now,
+        days_completed: 0,
+        tallied: false,
+        claimed: false,
         bump: ctx.bumps.participant,
     });
     ctx.accounts.discord_link.set_inner(DiscordLink {

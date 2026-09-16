@@ -17,6 +17,9 @@ export const config = {
     voiceChannelId: optional('DISCORD_VOICE_CHANNEL_ID'),
   },
   dailyGoalSeconds: Number(process.env.DAILY_GOAL_SECONDS ?? 3 * 60 * 60),
+  // 0 = weekly, 2 = the short test track (see the program's constants)
+  challengeTrack: Number(process.env.CHALLENGE_TRACK ?? 0),
+  flushIntervalMs: Number(process.env.FLUSH_INTERVAL_MS ?? 30_000),
   dbPath: new URL('../data/grind.db', import.meta.url),
 }
 

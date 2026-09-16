@@ -45,4 +45,8 @@ export const RULES: ToggleItem[] = [
     title: 'Schedule',
     body: 'Each weekly challenge runs Monday to Sunday. All days and times are in UTC.',
   },
+  {
+    title: 'Nobody wins',
+    body: 'If no one passes every day, the prize pool rolls over to the next challenge.',
+  },
 ]

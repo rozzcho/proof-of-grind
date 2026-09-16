@@ -32,3 +32,18 @@ export function getRegisterTx(wallet: string, multiply: number) {
 export function confirmRegistration() {
   return request<GrantResult>('/api/register/confirm', { method: 'POST' })
 }
+
+export type ChallengeDay = { dayIndex: number; seconds: number; goalMet: boolean; recorded: boolean }
+
+export type Progress = {
+  track: number
+  challengeId: number
+  running: boolean
+  goalSeconds: number
+  counting: boolean
+  days: ChallengeDay[]
+}
+
+export function getProgress() {
+  return request<Progress>('/api/progress')
+}

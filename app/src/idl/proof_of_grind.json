@@ -8,6 +8,154 @@
   },
   "instructions": [
     {
+      "name": "claim",
+      "docs": [
+        "A winner withdraws their share of the prize pool."
+      ],
+      "discriminator": [
+        62,
+        198,
+        214,
+        193,
+        213,
+        159,
+        108,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "challenge",
+          "writable": true,
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "challenge"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_progress",
+      "docs": [
+        "Marks one day as passed for a participant."
+      ],
+      "discriminator": [
+        116,
+        126,
+        203,
+        83,
+        23,
+        114,
+        161,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "writable": true,
+          "signer": true,
+          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+        },
+        {
+          "name": "challenge",
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "day_index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "register",
       "docs": [
         "Pays `entry_fee × multiply` into the challenge vault and joins the pool."
@@ -192,6 +340,286 @@
           "type": "u8"
         }
       ]
+    },
+    {
+      "name": "rollover",
+      "docs": [
+        "Moves the prize pool of a challenge nobody won into a later one."
+      ],
+      "discriminator": [
+        147,
+        98,
+        248,
+        23,
+        82,
+        182,
+        25,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "from",
+          "writable": true
+        },
+        {
+          "name": "to",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "from",
+            "to"
+          ]
+        },
+        {
+          "name": "from_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "from"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "to_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "to"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "tally",
+      "docs": [
+        "Counts one participant after the challenge ends; the last one finalizes it."
+      ],
+      "discriminator": [
+        152,
+        106,
+        131,
+        171,
+        155,
+        62,
+        41,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "participant",
+          "writable": true
+        },
+        {
+          "name": "challenge",
+          "writable": true,
+          "relations": [
+            "participant"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw_fees",
+      "docs": [
+        "Sends the platform fee and rounding dust to the treasury."
+      ],
+      "discriminator": [
+        198,
+        212,
+        171,
+        109,
+        144,
+        215,
+        174,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "treasury",
+          "writable": true,
+          "signer": true,
+          "address": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
+        },
+        {
+          "name": "challenge",
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "challenge"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -239,7 +667,7 @@
     {
       "code": 6000,
       "name": "InvalidTrack",
-      "msg": "Only the weekly track is open"
+      "msg": "Unknown challenge track"
     },
     {
       "code": 6001,
@@ -258,6 +686,66 @@
     },
     {
       "code": 6004,
+      "name": "InvalidDay",
+      "msg": "That day is not part of this challenge"
+    },
+    {
+      "code": 6005,
+      "name": "DayNotStarted",
+      "msg": "That day has not started yet"
+    },
+    {
+      "code": 6006,
+      "name": "RecordingClosed",
+      "msg": "Progress can no longer be recorded for this challenge"
+    },
+    {
+      "code": 6007,
+      "name": "ChallengeNotOver",
+      "msg": "The challenge is still running"
+    },
+    {
+      "code": 6008,
+      "name": "AlreadyTallied",
+      "msg": "This participant was already counted"
+    },
+    {
+      "code": 6009,
+      "name": "NotFinalized",
+      "msg": "Every participant must be counted first"
+    },
+    {
+      "code": 6010,
+      "name": "NotAWinner",
+      "msg": "Only participants who passed every day can claim"
+    },
+    {
+      "code": 6011,
+      "name": "AlreadyClaimed",
+      "msg": "Already claimed"
+    },
+    {
+      "code": 6012,
+      "name": "ClaimsPending",
+      "msg": "Everyone must claim before fees can be withdrawn"
+    },
+    {
+      "code": 6013,
+      "name": "NothingToRollOver",
+      "msg": "This challenge has winners, so nothing rolls over"
+    },
+    {
+      "code": 6014,
+      "name": "AlreadyRolledOver",
+      "msg": "The prize pool already rolled over"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidRolloverTarget",
+      "msg": "The prize pool can only roll over into a later challenge on the same track"
+    },
+    {
+      "code": 6016,
       "name": "MathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -302,13 +790,53 @@
           {
             "name": "total_shares",
             "docs": [
-              "Sum of every participant's multiply; rewards are split by these shares."
+              "Sum of every participant's multiply."
             ],
             "type": "u64"
           },
           {
             "name": "total_deposited",
+            "docs": [
+              "Everything paid in: the entry pool."
+            ],
             "type": "u64"
+          },
+          {
+            "name": "carry_over",
+            "docs": [
+              "Prize pool rolled over from an earlier challenge nobody won."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "winner_shares",
+            "docs": [
+              "Sum of the winners' multiply; rewards are split by these shares."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "winner_count",
+            "type": "u32"
+          },
+          {
+            "name": "tallied_count",
+            "type": "u32"
+          },
+          {
+            "name": "claimed_count",
+            "type": "u32"
+          },
+          {
+            "name": "finalized",
+            "docs": [
+              "Every participant has been counted, so the winners are known."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "rolled_over",
+            "type": "bool"
           },
           {
             "name": "bump",
@@ -374,6 +902,21 @@
             "type": "i64"
           },
           {
+            "name": "days_completed",
+            "docs": [
+              "One bit per day of the challenge; all bits set means they passed."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "tallied",
+            "type": "bool"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -393,6 +936,14 @@
       "value": "[100, 105, 115, 99, 111, 114, 100]"
     },
     {
+      "name": "FEE_BPS",
+      "docs": [
+        "Platform + exchange fee, in basis points of the entry pool."
+      ],
+      "type": "u64",
+      "value": "500"
+    },
+    {
       "name": "MAX_MULTIPLY",
       "type": "u8",
       "value": "10"
@@ -403,9 +954,61 @@
       "value": "[112, 97, 114, 116, 105, 99, 105, 112, 97, 110, 116]"
     },
     {
+      "name": "PAYOUT_UNIT",
+      "docs": [
+        "Rewards are rounded down to 0.01 USDC."
+      ],
+      "type": "u64",
+      "value": "10000"
+    },
+    {
+      "name": "TEST_DAYS",
+      "type": "u8",
+      "value": "5"
+    },
+    {
+      "name": "TEST_DAY_SECONDS",
+      "type": "i64",
+      "value": "120"
+    },
+    {
+      "name": "TEST_DURATION",
+      "type": "i64",
+      "value": "600"
+    },
+    {
+      "name": "TEST_ENTRY_FEE",
+      "type": "u64",
+      "value": "1000000"
+    },
+    {
+      "name": "TEST_LAUNCH_TS",
+      "docs": [
+        "Test challenges run every 10 minutes, with five 2-minute \"days\"."
+      ],
+      "type": "i64",
+      "value": "0"
+    },
+    {
+      "name": "TRACK_TEST",
+      "docs": [
+        "Short track for testing the full cycle without waiting a week."
+      ],
+      "type": "u8",
+      "value": "2"
+    },
+    {
       "name": "TRACK_WEEKLY",
       "type": "u8",
       "value": "0"
+    },
+    {
+      "name": "TREASURY",
+      "docs": [
+        "Receives the platform fee and leftover rounding dust."
+      ],
+      "type": "pubkey",
+      "value": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
     },
     {
       "name": "USDC_MINT",
@@ -418,10 +1021,20 @@
     {
       "name": "VERIFIER",
       "docs": [
-        "Server key that co-signs `register` after verifying the Discord account via OAuth."
+        "Server key: co-signs `register` after verifying the Discord account, and records daily progress."
       ],
       "type": "pubkey",
       "value": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+    },
+    {
+      "name": "WEEKLY_DAYS",
+      "type": "u8",
+      "value": "7"
+    },
+    {
+      "name": "WEEKLY_DAY_SECONDS",
+      "type": "i64",
+      "value": "86400"
     },
     {
       "name": "WEEKLY_ENTRY_FEE",

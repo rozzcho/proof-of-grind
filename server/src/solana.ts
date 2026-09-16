@@ -28,19 +28,55 @@ function idlConstant(name: string): string {
 }
 
 const USDC_MINT = new PublicKey(idlConstant('USDC_MINT'))
-const TRACK_WEEKLY = Number(idlConstant('TRACK_WEEKLY'))
-const WEEKLY_LAUNCH_MS = Number(idlConstant('WEEKLY_LAUNCH_TS')) * 1000
-const WEEK_MS = Number(idlConstant('WEEK_SECONDS')) * 1000
 export const MAX_MULTIPLY = Number(idlConstant('MAX_MULTIPLY'))
 
-/** Challenge taking registrations: the one starting next Monday 00:00 UTC. */
-export function openChallengeId(now = Date.now()) {
-  return now < WEEKLY_LAUNCH_MS ? 0 : Math.floor((now - WEEKLY_LAUNCH_MS) / WEEK_MS) + 1
+/** Track parameters, straight from the program constants. */
+const TRACKS = {
+  [Number(idlConstant('TRACK_WEEKLY'))]: {
+    launchMs: Number(idlConstant('WEEKLY_LAUNCH_TS')) * 1000,
+    durationMs: Number(idlConstant('WEEK_SECONDS')) * 1000,
+    dayMs: Number(idlConstant('WEEKLY_DAY_SECONDS')) * 1000,
+    days: Number(idlConstant('WEEKLY_DAYS')),
+  },
+  [Number(idlConstant('TRACK_TEST'))]: {
+    launchMs: Number(idlConstant('TEST_LAUNCH_TS')) * 1000,
+    durationMs: Number(idlConstant('TEST_DURATION')) * 1000,
+    dayMs: Number(idlConstant('TEST_DAY_SECONDS')) * 1000,
+    days: Number(idlConstant('TEST_DAYS')),
+  },
+} as const
+
+export const TRACK = config.challengeTrack
+export const trackConfig = TRACKS[TRACK]
+if (!trackConfig) throw new Error(`CHALLENGE_TRACK ${TRACK} is not a track the program knows`)
+
+export function challengeStartMs(challengeId: number) {
+  return trackConfig.launchMs + challengeId * trackConfig.durationMs
 }
 
-/** Challenge in progress this week, or null before launch. */
+export function challengeEndMs(challengeId: number) {
+  return challengeStartMs(challengeId) + trackConfig.durationMs
+}
+
+/** Challenge taking registrations: the next one to start. */
+export function openChallengeId(now = Date.now()) {
+  return now < trackConfig.launchMs ? 0 : Math.floor((now - trackConfig.launchMs) / trackConfig.durationMs) + 1
+}
+
+/** Challenge in progress right now, or null before the first one. */
 export function runningChallengeId(now = Date.now()) {
-  return now < WEEKLY_LAUNCH_MS ? null : Math.floor((now - WEEKLY_LAUNCH_MS) / WEEK_MS)
+  return now < trackConfig.launchMs ? null : Math.floor((now - trackConfig.launchMs) / trackConfig.durationMs)
+}
+
+/** Which day of the challenge `now` falls in, or null if it is outside the challenge. */
+export function dayIndexAt(challengeId: number, now: number) {
+  const offset = now - challengeStartMs(challengeId)
+  if (offset < 0 || offset >= trackConfig.durationMs) return null
+  return Math.floor(offset / trackConfig.dayMs)
+}
+
+export function dayEndMs(challengeId: number, dayIndex: number) {
+  return challengeStartMs(challengeId) + (dayIndex + 1) * trackConfig.dayMs
 }
 
 function u64le(value: anchor.BN | number | string) {
@@ -49,7 +85,7 @@ function u64le(value: anchor.BN | number | string) {
 
 export function challengePda(challengeId: number) {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from('challenge'), Buffer.from([TRACK_WEEKLY]), u64le(challengeId)],
+    [Buffer.from('challenge'), Buffer.from([TRACK]), u64le(challengeId)],
     program.programId,
   )[0]
 }
@@ -96,7 +132,7 @@ export async function buildRegisterTx(wallet: PublicKey, discordId: string, mult
   if (linkInfo) throw new RegistrationError('discord-registered', 409, 'This Discord account is already registered.')
 
   const ix = await program.methods
-    .register(TRACK_WEEKLY, new anchor.BN(challengeId), new anchor.BN(discordId), multiply)
+    .register(TRACK, new anchor.BN(challengeId), new anchor.BN(discordId), multiply)
     .accountsPartial({
       user: wallet,
       verifier: verifier.publicKey,
@@ -134,4 +170,75 @@ export async function registeredDiscordIds(challengeId: number): Promise<string[
     { memcmp: { offset: 8, bytes: challengePda(challengeId).toBase58() } },
   ])
   return links.map((l) => l.account.discordId.toString())
+}
+
+/** Sends a transaction signed (and paid for) by the server's oracle key. */
+async function sendAsOracle(instruction: anchor.web3.TransactionInstruction) {
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+  const tx = new Transaction({ feePayer: verifier.publicKey, blockhash, lastValidBlockHeight }).add(instruction)
+  tx.sign(verifier)
+  const signature = await connection.sendRawTransaction(tx.serialize())
+  const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+  if (result.value.err) throw new Error(JSON.stringify(result.value.err))
+  return signature
+}
+
+export async function oracleBalanceSol() {
+  return (await connection.getBalance(verifier.publicKey)) / 1e9
+}
+
+export const oracleAddress = verifier.publicKey.toBase58()
+
+/** Marks one day as passed on chain. Safe to call again for the same day. */
+export async function recordProgress(challengeId: number, user: PublicKey, dayIndex: number) {
+  const challenge = challengePda(challengeId)
+  const ix = await program.methods
+    .recordProgress(dayIndex)
+    .accountsPartial({ oracle: verifier.publicKey, challenge, participant: participantPda(challenge, user) })
+    .instruction()
+  return sendAsOracle(ix)
+}
+
+export async function tally(challengeId: number, user: PublicKey) {
+  const challenge = challengePda(challengeId)
+  const ix = await program.methods
+    .tally()
+    .accountsPartial({ challenge, participant: participantPda(challenge, user) })
+    .instruction()
+  return sendAsOracle(ix)
+}
+
+export async function rollover(fromId: number, toId: number) {
+  const from = challengePda(fromId)
+  const to = challengePda(toId)
+  const ix = await program.methods
+    .rollover()
+    .accountsPartial({
+      from,
+      to,
+      mint: USDC_MINT,
+      fromVault: getAssociatedTokenAddressSync(USDC_MINT, from, true),
+      toVault: getAssociatedTokenAddressSync(USDC_MINT, to, true),
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .instruction()
+  return sendAsOracle(ix)
+}
+
+export type ParticipantRow = { discordId: string; user: PublicKey; tallied: boolean }
+
+/** Everyone registered for a challenge, read from chain. */
+export async function participantsOf(challengeId: number): Promise<ParticipantRow[]> {
+  const rows = await program.account.participant.all([
+    { memcmp: { offset: 8, bytes: challengePda(challengeId).toBase58() } },
+  ])
+  return rows.map((row) => ({
+    discordId: row.account.discordId.toString(),
+    user: row.account.user,
+    tallied: row.account.tallied,
+  }))
+}
+
+export async function challengeState(challengeId: number) {
+  return program.account.challenge.fetchNullable(challengePda(challengeId))
 }

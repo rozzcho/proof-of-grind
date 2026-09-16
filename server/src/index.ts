@@ -4,7 +4,15 @@ import { Hono } from 'hono'
 import { auth, getSession } from './auth.ts'
 import { addParticipant, grantRole, startBot, tracker } from './bot.ts'
 import { botConfigured, config, oauthConfigured } from './config.ts'
-import { RegistrationError, buildRegisterTx, isDiscordRegistered } from './solana.ts'
+import {
+  RegistrationError,
+  buildRegisterTx,
+  isDiscordRegistered,
+  openChallengeId,
+  runningChallengeId,
+  TRACK,
+  trackConfig,
+} from './solana.ts'
 
 const app = new Hono()
 
@@ -56,14 +64,19 @@ app.post('/api/register/confirm', async (c) => {
   }
 })
 
-// Counted voice time for the logged-in Discord user, Monday–Sunday (UTC) of the current week.
+// Progress of the logged-in Discord user in the challenge being run (or the next one).
 app.get('/api/progress', async (c) => {
   const session = await getSession(c)
   if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
+  const running = runningChallengeId()
+  const challengeId = running ?? openChallengeId()
   return c.json({
+    track: TRACK,
+    challengeId,
+    running: running !== null,
     goalSeconds: config.dailyGoalSeconds,
     counting: tracker.isActive(session.discordId),
-    days: tracker.week(session.discordId),
+    days: tracker.challenge(session.discordId, TRACK, challengeId, trackConfig.days),
   })
 })
 

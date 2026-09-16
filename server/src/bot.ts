@@ -2,8 +2,23 @@ import { fileURLToPath } from 'node:url'
 import { mkdirSync } from 'node:fs'
 import { ChannelType, Client, Events, GatewayIntentBits, type VoiceState } from 'discord.js'
 import { botConfigured, config } from './config.ts'
-import { openChallengeId, registeredDiscordIds, runningChallengeId } from './solana.ts'
-import { GrindTracker } from './tracker.ts'
+import {
+  challengeState,
+  dayEndMs,
+  dayIndexAt,
+  openChallengeId,
+  oracleAddress,
+  oracleBalanceSol,
+  participantsOf,
+  recordProgress,
+  registeredDiscordIds,
+  rollover,
+  runningChallengeId,
+  tally,
+  TRACK,
+  trackConfig,
+} from './solana.ts'
+import { GrindTracker, type Slot } from './tracker.ts'
 
 export type GrantResult = { roleGranted: boolean; joinedGuild: boolean; reason?: string }
 
@@ -12,13 +27,25 @@ let client: Client | null = null
 mkdirSync(new URL('.', config.dbPath), { recursive: true })
 export const tracker = new GrindTracker(fileURLToPath(config.dbPath), config.dailyGoalSeconds)
 
-const FLUSH_INTERVAL_MS = 30_000
+const FLUSH_INTERVAL_MS = config.flushIntervalMs
 const PARTICIPANT_REFRESH_MS = 60_000
 const ROLE_SYNC_MS = 10 * 60_000
+const CHAIN_SYNC_MS = 60_000
 
 // Discord ids registered for the running or the upcoming weekly challenge.
 // Time is recorded for both; pass/fail only looks at days inside a challenge's week.
 let participants = new Set<string>()
+
+/** Which challenge each participant's time counts toward, by Discord id. */
+let challengeOf = new Map<string, number>()
+
+function slotOf(discordId: string, atMs: number): Slot | null {
+  const challengeId = challengeOf.get(discordId)
+  if (challengeId === undefined) return null
+  const dayIndex = dayIndexAt(challengeId, atMs)
+  if (dayIndex === null) return null
+  return { track: TRACK, challengeId, dayIndex, endMs: dayEndMs(challengeId, dayIndex) }
+}
 
 async function currentParticipantIds() {
   const running = runningChallengeId()
@@ -73,8 +100,68 @@ async function evaluateChannel() {
 }
 
 async function refreshParticipants() {
-  participants = await currentParticipantIds()
+  const running = runningChallengeId()
+  const open = openChallengeId()
+  const [runningIds, openIds] = await Promise.all([
+    running === null ? [] : registeredDiscordIds(running),
+    registeredDiscordIds(open),
+  ])
+  // Time counts toward the challenge being run; registrations for the next one count once it starts.
+  challengeOf = new Map([...openIds.map((id) => [id, open] as const), ...runningIds.map((id) => [id, running!] as const)])
+  participants = new Set(challengeOf.keys())
   await evaluateChannel()
+}
+
+/** Puts days that hit the goal on chain, retrying anything that failed earlier. */
+async function recordPending() {
+  const pending = tracker.pendingRecords().filter((record) => record.track === TRACK)
+  if (pending.length === 0) return
+  const byChallenge = new Map<number, Awaited<ReturnType<typeof participantsOf>>>()
+  for (const record of pending) {
+    try {
+      if (!byChallenge.has(record.challengeId)) {
+        byChallenge.set(record.challengeId, await participantsOf(record.challengeId))
+      }
+      const participant = byChallenge.get(record.challengeId)!.find((p) => p.discordId === record.discordId)
+      if (!participant) continue
+      await recordProgress(record.challengeId, participant.user, record.dayIndex)
+      tracker.markRecorded(record)
+      console.log(`[chain] recorded day ${record.dayIndex} of #${record.challengeId} for ${record.discordId}`)
+    } catch (err) {
+      console.error(`[chain] could not record day ${record.dayIndex} of #${record.challengeId}`, err)
+    }
+  }
+}
+
+/** After a challenge ends: count everyone, then roll the pool over if nobody passed. */
+async function settleFinishedChallenge() {
+  const running = runningChallengeId()
+  const finished = running === null ? null : running - 1
+  if (finished === null || finished < 0) return
+  const state = await challengeState(finished)
+  if (!state) return
+
+  if (!state.finalized) {
+    for (const participant of await participantsOf(finished)) {
+      if (participant.tallied) continue
+      await tally(finished, participant.user).catch((err) => console.error('[chain] tally failed', err))
+    }
+    console.log(`[chain] tallied challenge #${finished}`)
+  }
+
+  const settled = await challengeState(finished)
+  if (settled?.finalized && settled.winnerShares.isZero() && !settled.rolledOver) {
+    const next = openChallengeId()
+    if (await challengeState(next)) {
+      await rollover(finished, next)
+      console.log(`[chain] nobody passed #${finished}: prize pool rolled over into #${next}`)
+    }
+  }
+}
+
+async function syncChain() {
+  await recordPending()
+  await settleFinishedChallenge()
 }
 
 async function startTracking() {
@@ -82,10 +169,20 @@ async function startTracking() {
     console.warn('[tracker] DISCORD_VOICE_CHANNEL_ID not set — time tracking disabled')
     return
   }
+  tracker.setSlotResolver(slotOf)
   await refreshParticipants()
-  console.log(`[tracker] tracking ${participants.size} participants (goal ${config.dailyGoalSeconds}s/day)`)
+  const balance = await oracleBalanceSol()
+  console.log(
+    `[tracker] track ${TRACK}, ${participants.size} participants, goal ${config.dailyGoalSeconds}s per ${trackConfig.dayMs / 1000}s day`,
+  )
+  if (balance < 0.05) console.warn(`[chain] oracle ${oracleAddress} has only ${balance} SOL — top it up`)
   setInterval(() => tracker.flush(), FLUSH_INTERVAL_MS)
   setInterval(() => refreshParticipants().catch((err) => console.error('[tracker] refresh failed', err)), PARTICIPANT_REFRESH_MS)
+  setInterval(() => {
+    tracker.flush()
+    syncChain().catch((err) => console.error('[chain] sync failed', err))
+  }, CHAIN_SYNC_MS)
+  await syncChain().catch((err) => console.error('[chain] sync failed', err))
 }
 
 /** Call after a registration confirms so an already-streaming user starts counting right away. */

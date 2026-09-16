@@ -344,6 +344,36 @@ button.nav-link:focus-visible {
   }
 }
 
+.day-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  border: 1px solid var(--cyan);
+  opacity: 0.45;
+}
+
+.day[data-state='passed'] {
+  background: var(--cyan);
+  color: var(--bg);
+  opacity: 1;
+}
+
+.card-note {
+  margin: 0 0 10px;
+  opacity: 0.7;
+}
+
 /* Multiply stepper + info */
 .pay-multiply-label {
   display: inline-flex;

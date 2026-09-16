@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChallengeCard } from './ChallengeCard'
 import { Clock } from './Clock'
+import { MyChallenge } from './MyChallenge'
 import { openWeeklyChallenge, runningWeeklyChallenge } from '../lib/schedule'
 
 export function SidePanel() {
@@ -17,6 +18,7 @@ export function SidePanel() {
   return (
     <aside className="side-panel">
       <Clock />
+      <MyChallenge />
       <ChallengeCard title="Ongoing" challenge={running} emptyText="No challenge running yet." />
       <ChallengeCard title="Next Challenge" challenge={open} countdownTo={open.startMs} emptyText="" />
     </aside>

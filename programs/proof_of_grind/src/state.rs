@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::{constants::*, error::ErrorCode};
+
 #[account]
 #[derive(InitSpace)]
 pub struct Challenge {
@@ -11,10 +13,35 @@ pub struct Challenge {
     pub start_ts: i64,
     pub end_ts: i64,
     pub participant_count: u32,
-    /// Sum of every participant's multiply; rewards are split by these shares.
+    /// Sum of every participant's multiply.
     pub total_shares: u64,
+    /// Everything paid in: the entry pool.
     pub total_deposited: u64,
+    /// Prize pool rolled over from an earlier challenge nobody won.
+    pub carry_over: u64,
+    /// Sum of the winners' multiply; rewards are split by these shares.
+    pub winner_shares: u64,
+    pub winner_count: u32,
+    pub tallied_count: u32,
+    pub claimed_count: u32,
+    /// Every participant has been counted, so the winners are known.
+    pub finalized: bool,
+    pub rolled_over: bool,
     pub bump: u8,
+}
+
+impl Challenge {
+    /// What the winners share: the entry pool minus fees, plus anything rolled over.
+    pub fn prize_pool(&self) -> Result<u64> {
+        let after_fee = (self.total_deposited as u128)
+            .checked_mul((10_000 - FEE_BPS) as u128)
+            .ok_or(ErrorCode::MathOverflow)?
+            / 10_000;
+        u64::try_from(after_fee)
+            .ok()
+            .and_then(|pool| pool.checked_add(self.carry_over))
+            .ok_or(ErrorCode::MathOverflow.into())
+    }
 }
 
 #[account]
@@ -26,6 +53,10 @@ pub struct Participant {
     pub multiply: u8,
     pub amount_paid: u64,
     pub registered_at: i64,
+    /// One bit per day of the challenge; all bits set means they passed.
+    pub days_completed: u16,
+    pub tallied: bool,
+    pub claimed: bool,
     pub bump: u8,
 }
 
