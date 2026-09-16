@@ -47,3 +47,11 @@ export type Progress = {
 export function getProgress() {
   return request<Progress>('/api/progress')
 }
+
+export function requestTestSol(wallet: string) {
+  return request<{ sent: boolean; sol?: number; reason?: string }>('/api/faucet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wallet }),
+  })
+}

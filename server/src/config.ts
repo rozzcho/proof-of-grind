@@ -11,6 +11,10 @@ export const config = {
   // Local dev keeps the key in a file; hosting providers pass it as a JSON array instead.
   verifierKeyPath: new URL('../.keys/verifier.json', import.meta.url),
   verifierSecretKey: optional('VERIFIER_SECRET_KEY'),
+  // Hands out a little SOL so testers can pay transaction fees.
+  faucetKeyPath: new URL('../.keys/faucet.json', import.meta.url),
+  faucetSecretKey: optional('FAUCET_SECRET_KEY'),
+  faucetSol: Number(process.env.FAUCET_SOL ?? 0.05),
   discord: {
     clientId: optional('DISCORD_CLIENT_ID'),
     clientSecret: optional('DISCORD_CLIENT_SECRET'),

@@ -8,6 +8,11 @@ import {
   RegistrationError,
   buildRegisterTx,
   challengeState,
+  faucetAddress,
+  faucetBalanceSol,
+  faucetConfigured,
+  sendTestSol,
+  walletBalanceSol,
   isDiscordRegistered,
   openChallengeId,
   oracleAddress,
@@ -23,8 +28,9 @@ app.route('/auth', auth)
 
 // Deployment check: says which pieces are configured, never what the values are.
 app.get('/api/health', async (c) => {
-  const [oracleSol, challenge] = await Promise.all([
+  const [oracleSol, faucetSol, challenge] = await Promise.all([
     oracleBalanceSol().catch(() => null),
+    faucetBalanceSol().catch(() => null),
     challengeState(openChallengeId()).catch(() => null),
   ])
   return c.json({
@@ -38,6 +44,9 @@ app.get('/api/health', async (c) => {
     openChallengeExists: Boolean(challenge),
     oracle: oracleAddress,
     oracleSol,
+    faucet: faucetConfigured,
+    faucetAddress,
+    faucetSol,
   })
 })
 
@@ -47,6 +56,38 @@ app.get('/api/me', async (c) => {
     oauthConfigured,
     discord: session ? { id: session.discordId, username: session.username, avatarUrl: session.avatarUrl } : null,
   })
+})
+
+// Testers rarely manage to get devnet SOL from public faucets, so we hand out just enough for fees.
+app.post('/api/faucet', async (c) => {
+  const session = await getSession(c)
+  if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
+  if (!faucetConfigured) return c.json({ error: 'Test SOL is not available right now.' }, 503)
+
+  const body = await c.req.json().catch(() => ({}))
+  let wallet: PublicKey
+  try {
+    wallet = new PublicKey(body.wallet)
+  } catch {
+    return c.json({ error: 'Invalid wallet address.' }, 400)
+  }
+
+  const balance = await walletBalanceSol(wallet)
+  if (balance >= config.faucetSol) {
+    return c.json({ sent: false, reason: 'already-funded', balance })
+  }
+  if (!tracker.claimFaucet(session.discordId, wallet.toBase58(), Math.round(config.faucetSol * 1e9))) {
+    return c.json({ error: 'You already received test SOL.', code: 'already-claimed' }, 429)
+  }
+
+  try {
+    const { signature } = await sendTestSol(wallet, config.faucetSol)
+    console.log(`[faucet] sent ${config.faucetSol} SOL to ${wallet.toBase58()}`)
+    return c.json({ sent: true, sol: config.faucetSol, signature })
+  } catch (err) {
+    console.error('[faucet]', err)
+    return c.json({ error: 'Could not send test SOL. Ask in Discord.' }, 502)
+  }
 })
 
 app.post('/api/register-tx', async (c) => {

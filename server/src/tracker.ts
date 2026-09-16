@@ -46,6 +46,14 @@ export class GrindTracker {
         PRIMARY KEY (discord_id, day)
       )
     `)
+    this.#db.exec(`
+      CREATE TABLE IF NOT EXISTS faucet_claims (
+        discord_id TEXT PRIMARY KEY,
+        wallet TEXT NOT NULL UNIQUE,
+        lamports INTEGER NOT NULL,
+        claimed_at INTEGER NOT NULL
+      )
+    `)
     // Same time, bucketed by challenge day — this is what gets recorded on chain.
     this.#db.exec(`
       CREATE TABLE IF NOT EXISTS challenge_progress (
@@ -59,6 +67,18 @@ export class GrindTracker {
         PRIMARY KEY (discord_id, track, challenge_id, day_index)
       )
     `)
+  }
+
+  /** Records that a Discord account received test SOL; false if it already had some. */
+  claimFaucet(discordId: string, wallet: string, lamports: number, now = Date.now()) {
+    const taken = this.#db
+      .prepare('SELECT discord_id FROM faucet_claims WHERE discord_id = ? OR wallet = ?')
+      .get(discordId, wallet)
+    if (taken) return false
+    this.#db
+      .prepare('INSERT INTO faucet_claims (discord_id, wallet, lamports, claimed_at) VALUES (?, ?, ?, ?)')
+      .run(discordId, wallet, lamports, now)
+    return true
   }
 
   /** Tells the tracker which challenge day a participant's time belongs to. */

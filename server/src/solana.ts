@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import anchor from '@anchor-lang/core'
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token'
-import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js'
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
 import type { ProofOfGrind } from '../../app/src/idl/proof_of_grind.ts'
 import { config } from './config.ts'
 
@@ -198,6 +198,53 @@ async function sendAsOracle(instruction: anchor.web3.TransactionInstruction) {
   const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
   if (result.value.err) throw new Error(JSON.stringify(result.value.err))
   return signature
+}
+
+const faucet = loadFaucet()
+
+function loadFaucet() {
+  const raw = config.faucetSecretKey ?? tryRead(config.faucetKeyPath)
+  if (!raw) return null
+  try {
+    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw)))
+  } catch {
+    console.warn('[faucet] FAUCET_SECRET_KEY is not a valid key — test SOL is disabled')
+    return null
+  }
+}
+
+function tryRead(path: URL) {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+export const faucetConfigured = faucet !== null
+export const faucetAddress = faucet?.publicKey.toBase58() ?? null
+
+export async function faucetBalanceSol() {
+  return faucet ? (await connection.getBalance(faucet.publicKey)) / LAMPORTS_PER_SOL : null
+}
+
+export async function walletBalanceSol(wallet: PublicKey) {
+  return (await connection.getBalance(wallet)) / LAMPORTS_PER_SOL
+}
+
+/** Sends a little SOL so a tester can pay transaction fees. */
+export async function sendTestSol(wallet: PublicKey, sol: number) {
+  if (!faucet) throw new Error('No faucet key')
+  const lamports = Math.round(sol * LAMPORTS_PER_SOL)
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
+  const tx = new Transaction({ feePayer: faucet.publicKey, blockhash, lastValidBlockHeight }).add(
+    SystemProgram.transfer({ fromPubkey: faucet.publicKey, toPubkey: wallet, lamports }),
+  )
+  tx.sign(faucet)
+  const signature = await connection.sendRawTransaction(tx.serialize())
+  const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+  if (result.value.err) throw new Error(JSON.stringify(result.value.err))
+  return { signature, lamports }
 }
 
 export async function oracleBalanceSol() {

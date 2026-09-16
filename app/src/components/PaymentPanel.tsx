@@ -8,6 +8,7 @@ import {
   getMe,
   getRegisterTx,
   logout,
+  requestTestSol,
   type GrantResult,
   type Me,
 } from '../lib/api'
@@ -68,6 +69,8 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
   const { publicKey, signTransaction } = useWallet()
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
   const [balance, setBalance] = useState<number | null>(null)
+  const [sol, setSol] = useState<number | null>(null)
+  const [funding, setFunding] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
   const [access, setAccess] = useState<Access>({ kind: 'idle' })
   const [multiply, setMultiply] = useState(1)
@@ -87,11 +90,13 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
       .then(setMe)
       .catch(() => setMe({ oauthConfigured: false, discord: null }))
     try {
-      const [participantInfo, tokenBalance] = await Promise.all([
+      const [participantInfo, tokenBalance, lamports] = await Promise.all([
         connection.getAccountInfo(participantPda(challenge, publicKey)),
         connection.getTokenAccountBalance(usdcAta(publicKey)).catch(() => null),
+        connection.getBalance(publicKey).catch(() => null),
       ])
       setBalance(tokenBalance ? Number(tokenBalance.value.uiAmount ?? 0) : 0)
+      setSol(lamports === null ? null : lamports / 1_000_000_000)
       if (participantInfo) setStatus({ kind: 'registered' })
       else setStatus({ kind: 'ready' })
     } catch (err) {
@@ -110,6 +115,19 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
       setAccess({ kind: 'done', result: await confirmRegistration() })
     } catch {
       setAccess({ kind: 'failed' })
+    }
+  }
+
+  const getTestSol = async () => {
+    if (!publicKey) return
+    setFunding(true)
+    try {
+      await requestTestSol(publicKey.toBase58())
+      await load()
+    } catch (err) {
+      setStatus({ kind: 'error', message: errorMessage(err) })
+    } finally {
+      setFunding(false)
     }
   }
 
@@ -165,6 +183,8 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
     }
   }
 
+  // Without SOL a wallet cannot pay network fees — and an empty wallet does not exist on chain yet.
+  const needsSol = sol !== null && sol < 0.01
   const insufficient = balance !== null && balance < total
   const canEdit = status.kind === 'ready' || status.kind === 'error'
   const displayBalance = balance === null ? '…' : balance.toFixed(2)
@@ -264,13 +284,21 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError }: P
             <p className="pay-message pay-error">Discord login is not set up on the server yet.</p>
           )}
           {me?.oauthConfigured && !discord && <p className="pay-message">Connect Discord to pay.</p>}
+          {needsSol && discord && (
+            <>
+              <p className="pay-message">Your wallet needs a little SOL for network fees.</p>
+              <button type="button" className="pay-button" onClick={getTestSol} disabled={funding}>
+                {funding ? 'Sending…' : 'Get test SOL'}
+              </button>
+            </>
+          )}
           {status.kind === 'error' && <p className="pay-message pay-error">{status.message}</p>}
           {insufficient && status.kind !== 'loading' && <p className="pay-message pay-error">Not enough USDC.</p>}
           <button
             type="button"
             className="pay-button"
             onClick={pay}
-            disabled={status.kind === 'loading' || busy || insufficient || !discord}
+            disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol}
           >
             {status.kind === 'paying' ? 'Processing…' : `Pay ${formatUsdc(total)} USDC`}
           </button>
