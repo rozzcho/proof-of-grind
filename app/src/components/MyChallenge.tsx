@@ -247,7 +247,7 @@ export function MyChallenge({ running, upcoming }: { running: Challenge | null; 
         <ChallengeDates challenge={challengeShown} />
         <dt>prize pool</dt>
         <dd>{joinedState ? `${joinedState.prizePool.toFixed(2)} USDC` : '…'}</dd>
-        <dt>{stake?.finalized ? 'winners' : 'winners so far'}</dt>
+        <dt>winners so far</dt>
         <dd>{joinedState?.winners ?? '…'}</dd>
         <dt>your stake</dt>
         <dd>{stake ? `${stake.multiply}x · ${stake.paidUsdc} USDC` : '…'}</dd>
