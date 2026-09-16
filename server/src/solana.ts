@@ -11,9 +11,26 @@ const idl = require('../../app/src/idl/proof_of_grind.json')
 
 export const connection = new Connection(config.rpcUrl, 'confirmed')
 
-const verifier = Keypair.fromSecretKey(
-  Uint8Array.from(JSON.parse(config.verifierSecretKey ?? readFileSync(config.verifierKeyPath, 'utf8'))),
-)
+function loadVerifier() {
+  const raw = config.verifierSecretKey ?? readSecretFile()
+  try {
+    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw)))
+  } catch {
+    throw new Error('VERIFIER_SECRET_KEY must be the JSON array from server/.keys/verifier.json')
+  }
+}
+
+function readSecretFile() {
+  try {
+    return readFileSync(config.verifierKeyPath, 'utf8')
+  } catch {
+    throw new Error(
+      'No verifier key: set VERIFIER_SECRET_KEY (the contents of server/.keys/verifier.json) or provide that file',
+    )
+  }
+}
+
+const verifier = loadVerifier()
 
 // Read-only provider: the server never pays fees, it only co-signs.
 const program = new anchor.Program<ProofOfGrind>(

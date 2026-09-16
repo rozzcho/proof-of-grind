@@ -80,7 +80,8 @@ app.get('/api/progress', async (c) => {
   })
 })
 
-serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
+// Railway and friends set PORT; listen on every interface so their proxy can reach us.
+serve({ fetch: app.fetch, port: config.port, hostname: '0.0.0.0' }, ({ port }) => {
   console.log(`[server] http://localhost:${port}  (oauth: ${oauthConfigured ? 'on' : 'off'}, bot: ${botConfigured ? 'on' : 'off'})`)
 })
 
