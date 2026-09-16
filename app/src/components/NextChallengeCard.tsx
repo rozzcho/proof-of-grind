@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import type { Challenge } from '../lib/schedule'
-import { ChallengeCard } from './ChallengeCard'
+import { ChallengeCardBody } from './ChallengeCard'
 import { PaymentPanel } from './PaymentPanel'
 
 // Set by the server when Discord OAuth sends the user back.
@@ -84,9 +84,26 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
     }
   }
 
-  if (registering && connected) {
-    return (
-      <section className="card" aria-label={`Register for ${challenge.label}`}>
+  const showForm = registering && connected
+
+  // Both views sit in the same grid cell, so the card keeps the height of the taller one
+  // and does not jump when switching between them.
+  return (
+    <section className="card card-stack">
+      <div className="card-pane" aria-hidden={showForm} inert={showForm} data-active={!showForm}>
+        <ChallengeCardBody title="Next Challenge" challenge={challenge} countdownTo={challenge.startMs} emptyText="">
+          <button type="button" className="pay-button" onClick={start}>
+            Register
+          </button>
+        </ChallengeCardBody>
+      </div>
+      <div
+        className="card-pane"
+        aria-hidden={!showForm}
+        inert={!showForm}
+        data-active={showForm}
+        aria-label={`Register for ${challenge.label}`}
+      >
         <div className="card-head">
           <button type="button" className="card-back" onClick={back} disabled={busy}>
             ← Back
@@ -98,19 +115,12 @@ export function NextChallengeCard({ challenge }: { challenge: Challenge }) {
         <PaymentPanel
           key={challenge.id}
           challenge={challenge}
+          // Loads while hidden too, so its messages are already there and the card height does not jump.
           open
           discordError={returned.discordError}
           onBusyChange={setBusy}
         />
-      </section>
-    )
-  }
-
-  return (
-    <ChallengeCard title="Next Challenge" challenge={challenge} countdownTo={challenge.startMs} emptyText="">
-      <button type="button" className="pay-button" onClick={start}>
-        Register
-      </button>
-    </ChallengeCard>
+      </div>
+    </section>
   )
 }

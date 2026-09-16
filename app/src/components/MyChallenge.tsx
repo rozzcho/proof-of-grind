@@ -135,7 +135,8 @@ export function MyChallenge({ running }: { running: Challenge | null }) {
     )
   }
 
-  const claimable = Boolean(stake?.finalized && stake.passedEveryDay && !stake.claimed)
+  const claimed = Boolean(stake?.claimed) || claim.kind === 'done'
+  const claimable = Boolean(stake?.finalized && stake.passedEveryDay && !claimed)
   const startMs = CHALLENGE.launchMs + progress.challengeId * CHALLENGE.durationMs
   const today = progress.currentDay === null ? null : progress.days[progress.currentDay]
   const dayEndsMs = progress.currentDay === null ? null : startMs + (progress.currentDay + 1) * CHALLENGE.dayMs
@@ -178,11 +179,6 @@ export function MyChallenge({ running }: { running: Challenge | null }) {
   return (
     <section className="card">
       <h2 className="card-title">My Challenge</h2>
-      <p className="card-subject">
-        {CHALLENGE.name} #{progress.challengeId}
-        {progress.running ? ' · running' : progress.over ? ' · finished' : ' · starts soon'}
-      </p>
-
       <ol className="day-grid">
         {progress.days.map((day) => {
           const fill = Math.min(1, day.seconds / progress.goalSeconds)
@@ -200,6 +196,11 @@ export function MyChallenge({ running }: { running: Challenge | null }) {
           )
         })}
       </ol>
+
+      <p className="card-subject">
+        {CHALLENGE.name} #{progress.challengeId}
+        {progress.running ? ' · running' : progress.over ? ' · finished' : ' · starts soon'}
+      </p>
 
       {today && dayEndsMs && (
         <dl className="card-rows">
@@ -229,12 +230,11 @@ export function MyChallenge({ running }: { running: Challenge | null }) {
         )}
       </dl>
 
+      {!claimed && (
       <p className="card-note">
         {progress.counting
           ? 'Camera on — counting now.'
-          : stake?.claimed
-            ? 'Reward claimed.'
-            : progress.over
+          : progress.over
               ? stake?.passedEveryDay
                 ? stake.finalized
                   ? 'You made it. Claim your reward.'
@@ -244,13 +244,20 @@ export function MyChallenge({ running }: { running: Challenge | null }) {
                 ? 'Join the voice channel and turn your camera on.'
                 : 'Starts soon. Camera time counts from day 1.'}
       </p>
-
-      {claimable && (
-        <button type="button" className="pay-button" onClick={sendClaim} disabled={claim.kind === 'sending'}>
-          {claim.kind === 'sending' ? 'Claiming…' : 'Claim reward'}
-        </button>
       )}
+
       {claim.kind === 'error' && <p className="pay-message pay-error">{claim.message}</p>}
+      <div className="card-actions">
+        <button
+          type="button"
+          className="pay-button"
+          data-state={claimed ? 'done' : claimable ? 'ready' : 'waiting'}
+          onClick={sendClaim}
+          disabled={!claimable || claim.kind === 'sending'}
+        >
+          {claimed ? 'Reward claimed.' : claim.kind === 'sending' ? 'Claiming…' : 'Claim reward'}
+        </button>
+      </div>
     </section>
   )
 }

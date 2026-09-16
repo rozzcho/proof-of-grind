@@ -27,12 +27,21 @@ function usdc(amount: number) {
   return `${amount.toFixed(2)} USDC`
 }
 
-export function ChallengeCard({ title, challenge, countdownTo, emptyText, children }: Props) {
+export function ChallengeCard(props: Props) {
+  return (
+    <section className="card">
+      <ChallengeCardBody {...props} />
+    </section>
+  )
+}
+
+/** The card's content without its frame. */
+export function ChallengeCardBody({ title, challenge, countdownTo, emptyText, children }: Props) {
   const state = useChallengeState(challenge?.id ?? -1)
   const left = useCountdown(countdownTo)
 
   return (
-    <section className="card">
+    <>
       <h2 className="card-title">{title}</h2>
       {countdownTo && (
         <p className="card-countdown" aria-label="Time left to register">
@@ -53,6 +62,6 @@ export function ChallengeCard({ title, challenge, countdownTo, emptyText, childr
         <p className="card-empty">{emptyText}</p>
       )}
       {children && <div className="card-actions">{children}</div>}
-    </section>
+    </>
   )
 }
