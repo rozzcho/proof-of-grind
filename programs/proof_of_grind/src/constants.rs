@@ -1,9 +1,5 @@
 use anchor_lang::prelude::*;
 
-/// Only this wallet can create challenges.
-#[constant]
-pub const ADMIN: Pubkey = pubkey!("Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf");
-
 /// Server key that co-signs `register` after verifying the Discord account via OAuth.
 #[constant]
 pub const VERIFIER: Pubkey = pubkey!("HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP");
@@ -24,5 +20,16 @@ pub const DISCORD_SEED: &[u8] = b"discord";
 #[constant]
 pub const TRACK_WEEKLY: u8 = 0;
 
+/// Weekly Challenge #0 starts Monday 2026-09-21 00:00 UTC; #n starts n weeks later.
 #[constant]
-pub const TRACK_BIWEEKLY: u8 = 1;
+pub const WEEKLY_LAUNCH_TS: i64 = 1_789_948_800;
+
+#[constant]
+pub const WEEK_SECONDS: i64 = 7 * 24 * 60 * 60;
+
+/// 7 USDC (6 decimals) per 1x.
+#[constant]
+pub const WEEKLY_ENTRY_FEE: u64 = 7_000_000;
+
+#[constant]
+pub const MAX_MULTIPLY: u8 = 10;

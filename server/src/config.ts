@@ -14,7 +14,10 @@ export const config = {
     botToken: optional('DISCORD_BOT_TOKEN'),
     guildId: optional('DISCORD_GUILD_ID'),
     roleId: optional('DISCORD_ROLE_ID'),
+    voiceChannelId: optional('DISCORD_VOICE_CHANNEL_ID'),
   },
+  dailyGoalSeconds: Number(process.env.DAILY_GOAL_SECONDS ?? 3 * 60 * 60),
+  dbPath: new URL('../data/grind.db', import.meta.url),
 }
 
 // OAuth callback goes through the app origin (Vite proxies /auth) so cookies stay first-party.
@@ -22,6 +25,3 @@ export const redirectUri = `${config.appUrl}/auth/discord/callback`
 
 export const oauthConfigured = Boolean(config.discord.clientId && config.discord.clientSecret)
 export const botConfigured = Boolean(config.discord.botToken && config.discord.guildId && config.discord.roleId)
-
-// Weekly Challenge #0
-export const CHALLENGE = { track: 0, id: 0 }

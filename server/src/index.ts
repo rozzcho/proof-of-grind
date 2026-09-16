@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { PublicKey } from '@solana/web3.js'
 import { Hono } from 'hono'
 import { auth, getSession } from './auth.ts'
-import { grantRole, startBot } from './bot.ts'
+import { addParticipant, grantRole, startBot, tracker } from './bot.ts'
 import { botConfigured, config, oauthConfigured } from './config.ts'
 import { RegistrationError, buildRegisterTx, isDiscordRegistered } from './solana.ts'
 
@@ -31,7 +31,7 @@ app.post('/api/register-tx', async (c) => {
   }
 
   try {
-    return c.json(await buildRegisterTx(wallet, session.discordId))
+    return c.json(await buildRegisterTx(wallet, session.discordId, Number(body.multiply)))
   } catch (err) {
     if (err instanceof RegistrationError) return c.json({ error: err.message, code: err.code }, err.status)
     console.error('[register-tx]', err)
@@ -47,6 +47,7 @@ app.post('/api/register/confirm', async (c) => {
     return c.json({ error: 'No registration found for this Discord account.', code: 'not-registered' }, 404)
   }
   if (!botConfigured) return c.json({ roleGranted: false, joinedGuild: false, reason: 'bot-not-configured' })
+  addParticipant(session.discordId).catch(() => {})
   try {
     return c.json(await grantRole(session.discordId, session.accessToken))
   } catch (err) {
@@ -55,8 +56,27 @@ app.post('/api/register/confirm', async (c) => {
   }
 })
 
+// Counted voice time for the logged-in Discord user, Monday–Sunday (UTC) of the current week.
+app.get('/api/progress', async (c) => {
+  const session = await getSession(c)
+  if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
+  return c.json({
+    goalSeconds: config.dailyGoalSeconds,
+    counting: tracker.isActive(session.discordId),
+    days: tracker.week(session.discordId),
+  })
+})
+
 serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`[server] http://localhost:${port}  (oauth: ${oauthConfigured ? 'on' : 'off'}, bot: ${botConfigured ? 'on' : 'off'})`)
 })
 
 startBot().catch((err) => console.error('[bot] failed to start', err))
+
+// Credit in-progress sessions before exiting (also runs on `node --watch` restarts).
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    tracker.stopAll()
+    process.exit(0)
+  })
+}

@@ -11,3 +11,4 @@ app/dist
 .ledger
 server/.env
 server/.keys
+server/data

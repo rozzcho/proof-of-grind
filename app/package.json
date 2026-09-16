@@ -9,7 +9,6 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "local:validator": "../scripts/local-validator.sh",
-    "local:setup": "node scripts/setup-local.ts",
     "local:fund": "node scripts/fund.ts"
   },
   "dependencies": {

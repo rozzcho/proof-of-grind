@@ -14,118 +14,10 @@ export type ProofOfGrind = {
   },
   "instructions": [
     {
-      "name": "createChallenge",
-      "discriminator": [
-        170,
-        244,
-        47,
-        1,
-        1,
-        15,
-        173,
-        239
-      ],
-      "accounts": [
-        {
-          "name": "authority",
-          "writable": true,
-          "signer": true,
-          "address": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
-        },
-        {
-          "name": "challenge",
-          "writable": true
-        },
-        {
-          "name": "mint",
-          "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-        },
-        {
-          "name": "vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "challenge"
-              },
-              {
-                "kind": "account",
-                "path": "tokenProgram"
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
-        },
-        {
-          "name": "tokenProgram"
-        },
-        {
-          "name": "associatedTokenProgram",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "systemProgram",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        {
-          "name": "track",
-          "type": "u8"
-        },
-        {
-          "name": "challengeId",
-          "type": "u64"
-        },
-        {
-          "name": "entryFee",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "register",
+      "docs": [
+        "Pays `entry_fee × multiply` into the challenge vault and joins the pool."
+      ],
       "discriminator": [
         211,
         124,
@@ -213,9 +105,7 @@ export type ProofOfGrind = {
         },
         {
           "name": "mint",
-          "relations": [
-            "challenge"
-          ]
+          "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         },
         {
           "name": "userTokenAccount",
@@ -282,14 +172,30 @@ export type ProofOfGrind = {
           "name": "tokenProgram"
         },
         {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
+          "name": "track",
+          "type": "u8"
+        },
+        {
+          "name": "challengeId",
+          "type": "u64"
+        },
+        {
           "name": "discordId",
           "type": "u64"
+        },
+        {
+          "name": "multiply",
+          "type": "u8"
         }
       ]
     }
@@ -338,18 +244,18 @@ export type ProofOfGrind = {
   "errors": [
     {
       "code": 6000,
-      "name": "unauthorized",
-      "msg": "Only the admin can create challenges"
+      "name": "invalidTrack",
+      "msg": "Only the weekly track is open"
     },
     {
       "code": 6001,
-      "name": "invalidTrack",
-      "msg": "Track must be weekly (0) or biweekly (1)"
+      "name": "invalidMultiply",
+      "msg": "Multiply must be between 1 and 10"
     },
     {
       "code": 6002,
-      "name": "invalidEntryFee",
-      "msg": "Entry fee must be greater than zero"
+      "name": "registrationClosed",
+      "msg": "Registration for this challenge is not open"
     },
     {
       "code": 6003,
@@ -369,14 +275,6 @@ export type ProofOfGrind = {
         "kind": "struct",
         "fields": [
           {
-            "name": "authority",
-            "type": "pubkey"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
             "name": "track",
             "type": "u8"
           },
@@ -385,15 +283,34 @@ export type ProofOfGrind = {
             "type": "u64"
           },
           {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
             "name": "entryFee",
             "docs": [
-              "In mint base units (USDC: 6 decimals)."
+              "Per 1x, in mint base units (USDC: 6 decimals)."
             ],
             "type": "u64"
           },
           {
+            "name": "startTs",
+            "type": "i64"
+          },
+          {
+            "name": "endTs",
+            "type": "i64"
+          },
+          {
             "name": "participantCount",
             "type": "u32"
+          },
+          {
+            "name": "totalShares",
+            "docs": [
+              "Sum of every participant's multiply; rewards are split by these shares."
+            ],
+            "type": "u64"
           },
           {
             "name": "totalDeposited",
@@ -451,6 +368,10 @@ export type ProofOfGrind = {
             "type": "u64"
           },
           {
+            "name": "multiply",
+            "type": "u8"
+          },
+          {
             "name": "amountPaid",
             "type": "u64"
           },
@@ -468,14 +389,6 @@ export type ProofOfGrind = {
   ],
   "constants": [
     {
-      "name": "admin",
-      "docs": [
-        "Only this wallet can create challenges."
-      ],
-      "type": "pubkey",
-      "value": "Gda3akHfzA74Dyz7qJhrj2EsFYX8AqH8s2Za41XpQMNf"
-    },
-    {
       "name": "challengeSeed",
       "type": "bytes",
       "value": "[99, 104, 97, 108, 108, 101, 110, 103, 101]"
@@ -486,14 +399,14 @@ export type ProofOfGrind = {
       "value": "[100, 105, 115, 99, 111, 114, 100]"
     },
     {
+      "name": "maxMultiply",
+      "type": "u8",
+      "value": "10"
+    },
+    {
       "name": "participantSeed",
       "type": "bytes",
       "value": "[112, 97, 114, 116, 105, 99, 105, 112, 97, 110, 116]"
-    },
-    {
-      "name": "trackBiweekly",
-      "type": "u8",
-      "value": "1"
     },
     {
       "name": "trackWeekly",
@@ -515,6 +428,27 @@ export type ProofOfGrind = {
       ],
       "type": "pubkey",
       "value": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+    },
+    {
+      "name": "weeklyEntryFee",
+      "docs": [
+        "7 USDC (6 decimals) per 1x."
+      ],
+      "type": "u64",
+      "value": "7000000"
+    },
+    {
+      "name": "weeklyLaunchTs",
+      "docs": [
+        "Weekly Challenge #0 starts Monday 2026-09-21 00:00 UTC; #n starts n weeks later."
+      ],
+      "type": "i64",
+      "value": "1789948800"
+    },
+    {
+      "name": "weekSeconds",
+      "type": "i64",
+      "value": "604800"
     }
   ]
 };

@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/index.ts",
     "start": "node --env-file-if-exists=.env src/index.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",

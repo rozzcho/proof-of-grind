@@ -2,12 +2,12 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Only the admin can create challenges")]
-    Unauthorized,
-    #[msg("Track must be weekly (0) or biweekly (1)")]
+    #[msg("Only the weekly track is open")]
     InvalidTrack,
-    #[msg("Entry fee must be greater than zero")]
-    InvalidEntryFee,
+    #[msg("Multiply must be between 1 and 10")]
+    InvalidMultiply,
+    #[msg("Registration for this challenge is not open")]
+    RegistrationClosed,
     #[msg("Registration must be co-signed by the verifier")]
     InvalidVerifier,
     #[msg("Arithmetic overflow")]

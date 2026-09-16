@@ -15,21 +15,14 @@ declare_id!("xCXUMjagsYgaVK8XLW4Wz9kbrswAsd5s3TPCGDsAFUG");
 pub mod proof_of_grind {
     use super::*;
 
-    pub fn create_challenge(
-        ctx: Context<CreateChallenge>,
+    /// Pays `entry_fee × multiply` into the challenge vault and joins the pool.
+    pub fn register(
+        ctx: Context<Register>,
         track: u8,
         challenge_id: u64,
-        entry_fee: u64,
+        discord_id: u64,
+        multiply: u8,
     ) -> Result<()> {
-        crate::instructions::create_challenge::handle_create_challenge(
-            ctx,
-            track,
-            challenge_id,
-            entry_fee,
-        )
-    }
-
-    pub fn register(ctx: Context<Register>, discord_id: u64) -> Result<()> {
-        crate::instructions::register::handle_register(ctx, discord_id)
+        crate::instructions::register::handle_register(ctx, track, challenge_id, discord_id, multiply)
     }
 }

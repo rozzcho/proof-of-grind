@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { useWalletModal } from '@solana/wallet-adapter-react-ui'
-import { WEEKLY_CHALLENGE } from '../config'
-import { PaymentModal } from './PaymentModal'
+import { useOpenWeeklyChallenge } from '../lib/schedule'
+import { NavToggle } from './NavToggle'
+import { PaymentPanel } from './PaymentPanel'
 
 // Set by the server when Discord OAuth sends the user back.
 function takeReturnParams() {
@@ -20,14 +21,15 @@ function takeReturnParams() {
 // Read once at load (StrictMode runs state initializers twice, which would drop the params).
 const returned = takeReturnParams()
 
-export function RegisterButton() {
+export function RegisterToggle() {
   const { connected } = useWallet()
   const { visible: walletModalVisible, setVisible: setWalletModalVisible } = useWalletModal()
   const [resuming, setResuming] = useState(returned.resume)
   const [pending, setPending] = useState(false)
   const [open, setOpen] = useState(false)
+  const challenge = useOpenWeeklyChallenge()
 
-  // Back from Discord: wait for wallet auto-connect, then reopen payment.
+  // Back from Discord: wait for wallet auto-connect, then reopen the section.
   useEffect(() => {
     if (!resuming) return
     if (connected) {
@@ -43,7 +45,7 @@ export function RegisterButton() {
     return () => clearTimeout(timer)
   }, [resuming, connected, setWalletModalVisible])
 
-  // Open payment right after the wallet connects; drop the intent if the wallet modal is dismissed.
+  // Open right after the wallet connects; drop the intent if the wallet modal is dismissed.
   useEffect(() => {
     if (!pending) return
     if (connected) {
@@ -54,8 +56,15 @@ export function RegisterButton() {
     }
   }, [pending, connected, walletModalVisible])
 
-  const handleClick = () => {
-    if (connected) {
+  // Disconnecting the wallet collapses the section.
+  useEffect(() => {
+    if (!connected) setOpen(false)
+  }, [connected])
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false)
+    } else if (connected) {
       setOpen(true)
     } else {
       setPending(true)
@@ -64,11 +73,11 @@ export function RegisterButton() {
   }
 
   return (
-    <>
-      <button type="button" className="nav-link" onClick={handleClick}>
-        Register {WEEKLY_CHALLENGE.label}
-      </button>
-      {open && <PaymentModal discordError={returned.discordError} onClose={() => setOpen(false)} />}
-    </>
+    <NavToggle label={`Register ${challenge.label}`} open={open} onToggle={toggle}>
+      {/* keyed by challenge so the panel resets when registration rolls over to the next week */}
+      {connected && (
+        <PaymentPanel key={challenge.id} challenge={challenge} open={open} discordError={returned.discordError} />
+      )}
+    </NavToggle>
   )
 }
