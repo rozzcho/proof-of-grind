@@ -7,8 +7,11 @@ import { botConfigured, config, oauthConfigured } from './config.ts'
 import {
   RegistrationError,
   buildRegisterTx,
+  challengeState,
   isDiscordRegistered,
   openChallengeId,
+  oracleAddress,
+  oracleBalanceSol,
   runningChallengeId,
   TRACK,
   trackConfig,
@@ -17,6 +20,26 @@ import {
 const app = new Hono()
 
 app.route('/auth', auth)
+
+// Deployment check: says which pieces are configured, never what the values are.
+app.get('/api/health', async (c) => {
+  const [oracleSol, challenge] = await Promise.all([
+    oracleBalanceSol().catch(() => null),
+    challengeState(openChallengeId()).catch(() => null),
+  ])
+  return c.json({
+    ok: true,
+    discordLogin: oauthConfigured,
+    discordBot: botConfigured,
+    voiceChannel: Boolean(config.discord.voiceChannelId),
+    appUrl: config.appUrl,
+    track: TRACK,
+    openChallengeId: openChallengeId(),
+    openChallengeExists: Boolean(challenge),
+    oracle: oracleAddress,
+    oracleSol,
+  })
+})
 
 app.get('/api/me', async (c) => {
   const session = await getSession(c)
