@@ -3,6 +3,8 @@ import idl from './idl/proof_of_grind.json'
 
 // Discord invite link — edit here
 export const DISCORD_INVITE_URL = 'https://discord.gg/QAJcGjP3Sh'
+// The full rules, readable without joining anything.
+export const RULES_URL = 'https://github.com/suynjo/proof-of-grind/blob/main/RULES.md'
 
 // Defaults target the local validator (scripts/local-validator.sh); deployments set VITE_*.
 export const RPC_ENDPOINT = import.meta.env.VITE_RPC_URL ?? 'http://127.0.0.1:8899'
@@ -29,6 +31,15 @@ const TRACKS = {
     days: Number(idlConstant('WEEKLY_DAYS')),
     entryFeeUsdc: Number(idlConstant('WEEKLY_ENTRY_FEE')) / 10 ** USDC_DECIMALS,
   },
+  [Number(idlConstant('TRACK_BIWEEKLY'))]: {
+    name: 'Biweekly Challenge',
+    track: Number(idlConstant('TRACK_BIWEEKLY')),
+    launchMs: Number(idlConstant('BIWEEKLY_LAUNCH_TS')) * 1000,
+    durationMs: Number(idlConstant('BIWEEKLY_DURATION')) * 1000,
+    dayMs: Number(idlConstant('BIWEEKLY_DAY_SECONDS')) * 1000,
+    days: Number(idlConstant('BIWEEKLY_DAYS')),
+    entryFeeUsdc: Number(idlConstant('BIWEEKLY_ENTRY_FEE')) / 10 ** USDC_DECIMALS,
+  },
   [Number(idlConstant('TRACK_TEST'))]: {
     name: 'Test Challenge',
     track: Number(idlConstant('TRACK_TEST')),
@@ -46,6 +57,23 @@ const selected = TRACKS[track as keyof typeof TRACKS]
 if (!selected) throw new Error(`VITE_CHALLENGE_TRACK ${track} is not a track the program knows`)
 
 export const CHALLENGE = { ...selected, maxMultiply: Number(idlConstant('MAX_MULTIPLY')) }
+
+export type TrackConfig = (typeof TRACKS)[number]
+
+/** Terms of any track, e.g. for a challenge the user joined on another track. */
+export function trackConfig(track: number): TrackConfig {
+  const config = TRACKS[track]
+  if (!config) throw new Error(`Track ${track} is not a track the program knows`)
+  return config
+}
+
+/** The Biweekly track, shown on the Next Challenge card. */
+export const BIWEEKLY = trackConfig(Number(idlConstant('TRACK_BIWEEKLY')))
+/**
+ * Biweekly registration opens with VITE_BIWEEKLY_OPEN=true, once its first start date is set and the
+ * server runs the track (CHALLENGE_TRACKS includes 1).
+ */
+export const BIWEEKLY_OPEN = import.meta.env.VITE_BIWEEKLY_OPEN === 'true'
 
 export function explorerTxUrl(signature: string) {
   const cluster =

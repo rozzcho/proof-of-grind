@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { HOW_TO_START, RULES, SUMMARY } from '../content'
-import { NavToggle, ToggleList } from './NavToggle'
+import { RULES_URL } from '../config'
+import { LineList, NavToggle, ToggleList } from './NavToggle'
 
 const CONTACTS = [
   { title: 'Telegram', label: '@suynjo', href: 'https://t.me/suynjo' },
@@ -28,7 +29,16 @@ export function NavMenu() {
         <ToggleList items={HOW_TO_START} />
       </NavToggle>
       <NavToggle label="Rules" {...toggle('rules')}>
-        <ToggleList items={RULES} />
+        <LineList
+          items={RULES}
+          footer={
+            <p className="steps-footer">
+              <a href={RULES_URL} target="_blank" rel="noopener noreferrer">
+                Full rules
+              </a>
+            </p>
+          }
+        />
       </NavToggle>
       <NavToggle label="Contact" {...toggle('contact')}>
         <ul className="steps steps-plain contact-list">

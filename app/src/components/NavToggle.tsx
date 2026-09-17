@@ -35,6 +35,24 @@ export function NavToggle({ label, children, open: controlledOpen, onToggle }: P
   )
 }
 
+/** One line per item, numbered (the rules). */
+export function LineList({ items, footer }: { items: { topic: string; text: string }[]; footer?: ReactNode }) {
+  return (
+    <>
+      <ol className="steps steps-lines">
+        {items.map((item) => (
+          <li key={item.topic}>
+            <p>
+              <span className="steps-topic">{item.topic}:</span> <span className="steps-text">{item.text}</span>
+            </p>
+          </li>
+        ))}
+      </ol>
+      {footer}
+    </>
+  )
+}
+
 /** Numbered for real sequences (How to start); plain for facts that have no order (the summary). */
 export function ToggleList({ items, numbered = true }: { items: ToggleItem[]; numbered?: boolean }) {
   return (

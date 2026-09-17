@@ -8,7 +8,7 @@ use {
     litesvm::LiteSVM,
     proof_of_grind::{
         constants::{
-            track_config, CHALLENGE_SEED, DISCORD_SEED, PARTICIPANT_SEED, TRACK_WEEKLY, TREASURY, USDC_MINT, VERIFIER,
+            track_config, CHALLENGE_SEED, DISCORD_LOCK_SEED, DISCORD_SEED, PARTICIPANT_SEED, WALLET_LOCK_SEED, TRACK_WEEKLY, TREASURY, USDC_MINT, VERIFIER,
             WEEKLY_ENTRY_FEE, WEEKLY_LAUNCH_TS, WEEK_SECONDS,
         },
         state::{Challenge, DiscordLink, Participant},
@@ -112,6 +112,14 @@ pub fn discord_link_pda(challenge: &Pubkey, discord_id: u64) -> Pubkey {
     .0
 }
 
+pub fn wallet_lock_pda(user: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[WALLET_LOCK_SEED, user.as_ref()], &proof_of_grind::id()).0
+}
+
+pub fn discord_lock_pda(discord_id: u64) -> Pubkey {
+    Pubkey::find_program_address(&[DISCORD_LOCK_SEED, &discord_id.to_le_bytes()], &proof_of_grind::id()).0
+}
+
 /// First signer pays fees.
 pub fn send(svm: &mut LiteSVM, ix: Instruction, signers: &[&Keypair]) -> Result<(), String> {
     svm.expire_blockhash();
@@ -148,6 +156,8 @@ pub fn register_ix(user: &Pubkey, verifier: &Pubkey, r: &Reg) -> Instruction {
             challenge,
             participant: participant_pda(&challenge, user),
             discord_link: discord_link_pda(&challenge, r.discord_id),
+            wallet_lock: wallet_lock_pda(user),
+            discord_lock: discord_lock_pda(r.discord_id),
             mint: USDC_MINT,
             user_token_account: ata(user),
             vault: ata(&challenge),

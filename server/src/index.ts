@@ -3,10 +3,13 @@ import { PublicKey } from '@solana/web3.js'
 import { Hono } from 'hono'
 import { auth, getSession } from './auth.ts'
 import { addParticipant, grantRole, startBot, tracker } from './bot.ts'
-import { botConfigured, config, oauthConfigured } from './config.ts'
+import { botConfigured, config, discordFor, oauthConfigured } from './config.ts'
 import {
+  ACTIVE_TRACKS,
   RegistrationError,
   buildRegisterTx,
+  challengeEndMs,
+  challengeStartMs,
   challengeState,
   dayIndexAt,
   faucetAddress,
@@ -14,14 +17,13 @@ import {
   faucetConfigured,
   sendTestSol,
   walletBalanceSol,
-  isDiscordRegistered,
   myChallenges,
   openChallengeId,
   oracleAddress,
   oracleBalanceSol,
+  registeredTracks,
   runningChallengeId,
-  TRACK,
-  trackConfig,
+  trackConfigOf,
 } from './solana.ts'
 
 const app = new Hono()
@@ -30,10 +32,18 @@ app.route('/auth', auth)
 
 // Deployment check: says which pieces are configured, never what the values are.
 app.get('/api/health', async (c) => {
-  const [oracleSol, faucetSol, challenge] = await Promise.all([
+  const [oracleSol, faucetSol, tracks] = await Promise.all([
     oracleBalanceSol().catch(() => null),
     faucetBalanceSol().catch(() => null),
-    challengeState(openChallengeId()).catch(() => null),
+    Promise.all(
+      ACTIVE_TRACKS.map(async (track) => ({
+        track,
+        voiceChannel: Boolean(discordFor(track).voiceChannelId),
+        role: Boolean(discordFor(track).roleId),
+        openChallengeId: openChallengeId(track),
+        openChallengeExists: Boolean(await challengeState(track, openChallengeId(track)).catch(() => null)),
+      })),
+    ),
   ])
   return c.json({
     ok: true,
@@ -41,9 +51,7 @@ app.get('/api/health', async (c) => {
     discordBot: botConfigured,
     voiceChannel: Boolean(config.discord.voiceChannelId),
     appUrl: config.appUrl,
-    track: TRACK,
-    openChallengeId: openChallengeId(),
-    openChallengeExists: Boolean(challenge),
+    tracks,
     oracle: oracleAddress,
     oracleSol,
     faucet: faucetConfigured,
@@ -104,8 +112,10 @@ app.post('/api/register-tx', async (c) => {
     return c.json({ error: 'Invalid wallet address.' }, 400)
   }
 
+  // Older clients do not send a track: they register for the first track this server runs.
+  const track = body.track === undefined ? ACTIVE_TRACKS[0] : Number(body.track)
   try {
-    return c.json(await buildRegisterTx(wallet, session.discordId, Number(body.multiply)))
+    return c.json(await buildRegisterTx(track, wallet, session.discordId, Number(body.multiply)))
   } catch (err) {
     if (err instanceof RegistrationError) return c.json({ error: err.message, code: err.code }, err.status)
     console.error('[register-tx]', err)
@@ -117,13 +127,14 @@ app.post('/api/register-tx', async (c) => {
 app.post('/api/register/confirm', async (c) => {
   const session = await getSession(c)
   if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
-  if (!(await isDiscordRegistered(session.discordId))) {
+  const tracks = await registeredTracks(session.discordId)
+  if (tracks.length === 0) {
     return c.json({ error: 'No registration found for this Discord account.', code: 'not-registered' }, 404)
   }
   if (!botConfigured) return c.json({ roleGranted: false, joinedGuild: false, reason: 'bot-not-configured' })
-  addParticipant(session.discordId).catch(() => {})
+  addParticipant().catch(() => {})
   try {
-    return c.json(await grantRole(session.discordId, session.accessToken))
+    return c.json(await grantRole(session.discordId, tracks, session.accessToken))
   } catch (err) {
     console.error('[confirm]', err)
     return c.json({ roleGranted: false, joinedGuild: false, reason: 'discord-error' }, 502)
@@ -131,31 +142,38 @@ app.post('/api/register/confirm', async (c) => {
 })
 
 /**
- * Progress in the challenge this user actually cares about: the one they are running, or a
- * finished one they still have to claim. Falls back to the upcoming challenge.
+ * Progress in the challenge this user actually cares about, on any track: the one running now,
+ * then a finished one still waiting on settlement or a claim, then the next one they joined.
+ * Falls back to the running (or upcoming) challenge of the first track.
  */
 app.get('/api/progress', async (c) => {
   const session = await getSession(c)
   if (!session) return c.json({ error: 'Connect Discord first.' }, 401)
 
-  const running = runningChallengeId()
-  const open = openChallengeId()
+  const now = Date.now()
   const joined = await myChallenges(session.discordId)
-  // Newest first, but a reward still waiting to be claimed wins over one already claimed.
-  const mine = joined.find((entry) => !entry.claimed) ?? joined.at(0)
-  const challengeId = mine?.challengeId ?? running ?? open
+  const mine =
+    joined.find((entry) => entry.startMs <= now && now < entry.endMs) ??
+    joined.find((entry) => entry.endMs <= now && (!entry.finalized || (entry.passedEveryDay && !entry.claimed))) ??
+    joined.filter((entry) => now < entry.startMs).sort((a, b) => a.startMs - b.startMs).at(0) ??
+    joined.at(0)
+
+  const track = mine?.track ?? ACTIVE_TRACKS[0]
+  const challengeId = mine?.challengeId ?? runningChallengeId(track) ?? openChallengeId(track)
+  const startMs = challengeStartMs(track, challengeId)
+  const endMs = challengeEndMs(track, challengeId)
 
   return c.json({
-    track: TRACK,
+    track,
     challengeId,
     registered: Boolean(mine),
     claimed: mine?.claimed ?? false,
-    running: challengeId === running,
-    over: challengeId < (running ?? open),
+    running: startMs <= now && now < endMs,
+    over: endMs <= now,
     goalSeconds: config.dailyGoalSeconds,
     counting: tracker.isActive(session.discordId),
-    currentDay: dayIndexAt(challengeId, Date.now()),
-    days: tracker.challenge(session.discordId, TRACK, challengeId, trackConfig.days),
+    currentDay: dayIndexAt(track, challengeId, now),
+    days: tracker.challenge(session.discordId, track, challengeId, trackConfigOf(track).days),
   })
 })
 

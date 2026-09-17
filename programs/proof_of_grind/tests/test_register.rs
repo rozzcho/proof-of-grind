@@ -3,7 +3,7 @@ mod common;
 use {
     common::*,
     proof_of_grind::{
-        constants::{TRACK_WEEKLY, WEEKLY_ENTRY_FEE, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
+        constants::{BIWEEKLY_LAUNCH_TS, TRACK_BIWEEKLY, TRACK_WEEKLY, WEEKLY_ENTRY_FEE, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
         state::{DiscordLink, Participant},
     },
     anchor_lang::AccountDeserialize,
@@ -118,9 +118,51 @@ fn not_enough_usdc_for_multiply_fails() {
 }
 
 #[test]
-fn non_weekly_track_fails() {
+fn unknown_track_fails() {
     let mut env = setup(BEFORE_LAUNCH);
     let user = new_user(&mut env.svm, 100 * USDC);
-    let r = Reg { track: 1, challenge_id: 0, discord_id: 1, multiply: 1 };
+    // 0 = Weekly, 1 = Biweekly, 2 = Test
+    let r = Reg { track: 9, challenge_id: 0, discord_id: 1, multiply: 1 };
     assert!(register(&mut env, &user, &r).is_err());
+}
+
+/// Anchor custom error 6000 + index of `OverlappingChallenge` in `ErrorCode`.
+const OVERLAPPING_CHALLENGE: &str = "Custom(6016)";
+
+fn biweekly(challenge_id: u64, discord_id: u64) -> Reg {
+    Reg { track: TRACK_BIWEEKLY, challenge_id, discord_id, multiply: 1 }
+}
+
+#[test]
+fn participation_lock_blocks_overlapping_tracks_only() {
+    let mut env = setup(WEEKLY_LAUNCH_TS - DAY);
+    let user = new_user(&mut env.svm, 100 * USDC);
+
+    // Back-to-back weeks on one track are fine.
+    register(&mut env, &user, &weekly(0, 5, 1)).unwrap();
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + DAY);
+    register(&mut env, &user, &weekly(1, 5, 1)).unwrap();
+
+    // Biweekly #0 starts right when Weekly #1 ends: no overlap.
+    assert_eq!(BIWEEKLY_LAUNCH_TS, WEEKLY_LAUNCH_TS + 2 * WEEK_SECONDS);
+    register(&mut env, &user, &biweekly(0, 5)).unwrap();
+
+    // Weekly #2 would run inside Biweekly #0.
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + DAY);
+    let err = register(&mut env, &user, &weekly(2, 5, 1)).unwrap_err();
+    assert!(err.contains(OVERLAPPING_CHALLENGE), "{err}");
+}
+
+#[test]
+fn participation_lock_follows_the_discord_account_across_wallets() {
+    let mut env = setup(WEEKLY_LAUNCH_TS + WEEK_SECONDS + DAY);
+    let first = new_user(&mut env.svm, 100 * USDC);
+    let second = new_user(&mut env.svm, 100 * USDC);
+
+    register(&mut env, &first, &weekly(2, 42, 1)).unwrap();
+    // Same Discord account, another wallet, overlapping Biweekly #0.
+    let err = register(&mut env, &second, &biweekly(0, 42)).unwrap_err();
+    assert!(err.contains(OVERLAPPING_CHALLENGE), "{err}");
+    // A different Discord account on that wallet is fine.
+    register(&mut env, &second, &biweekly(0, 43)).unwrap();
 }

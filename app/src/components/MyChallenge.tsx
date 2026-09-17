@@ -4,7 +4,7 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { AnchorProvider, BorshAccountsCoder, Program, type Idl } from '@anchor-lang/core'
 import { Transaction } from '@solana/web3.js'
 import idl from '../idl/proof_of_grind.json'
-import { CHALLENGE, USDC_DECIMALS, USDC_MINT } from '../config'
+import { CHALLENGE, USDC_DECIMALS, USDC_MINT, trackConfig, type TrackConfig } from '../config'
 import { getProgress, type Progress } from '../lib/api'
 import { PRIZE_POOL_SHARE, useChallengeState } from '../lib/challenge'
 import { challengePda, participantPda, usdcAta } from '../lib/program'
@@ -32,9 +32,9 @@ type Stake = {
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const hours = (seconds: number) => `${(seconds / 3600).toFixed(1)}h`
 
-function dayLabel(index: number, challengeStartMs: number) {
-  if (CHALLENGE.dayMs !== 24 * 60 * 60 * 1000) return String(index + 1)
-  const day = new Date(challengeStartMs + index * CHALLENGE.dayMs).getUTCDay()
+function dayLabel(index: number, challengeStartMs: number, dayMs: number) {
+  if (dayMs !== 24 * 60 * 60 * 1000) return String(index + 1)
+  const day = new Date(challengeStartMs + index * dayMs).getUTCDay()
   return WEEKDAYS[(day + 6) % 7]
 }
 
@@ -42,11 +42,13 @@ type Day = { dayIndex: number; seconds: number; goalMet: boolean }
 
 /** One square per challenge day; filled as camera time adds up. Empty squares before joining. */
 function DayGrid({
+  track,
   startMs,
   days,
   goalSeconds,
   today,
 }: {
+  track: TrackConfig
   startMs: number
   days: Day[]
   goalSeconds: number
@@ -56,7 +58,7 @@ function DayGrid({
     <ol className="day-grid">
       {days.map((day) => {
         const fill = goalSeconds > 0 ? Math.min(1, day.seconds / goalSeconds) : 0
-        const label = dayLabel(day.dayIndex, startMs)
+        const label = dayLabel(day.dayIndex, startMs, track.dayMs)
         return (
           <li
             key={day.dayIndex}
@@ -145,14 +147,17 @@ function MyChallengeBody({ running, upcoming }: Props) {
   const [now, setNow] = useState(() => Date.now())
   const runningState = useChallengeState(running?.id ?? -1, { withWinners: true })
   // The challenge you joined can differ from the running one (e.g. last week's, still to claim).
-  const joinedState = useChallengeState(progress?.registered ? progress.challengeId : -1, { withWinners: true })
+  const joinedState = useChallengeState(progress?.registered ? progress.challengeId : -1, {
+    track: progress?.track,
+    withWinners: true,
+  })
 
   const load = useCallback(async () => {
     const data = await getProgress().catch(() => null)
     setProgress(data)
     if (!data || !publicKey) return
 
-    const challenge = challengePda(CHALLENGE.track, data.challengeId)
+    const challenge = challengePda(data.track, data.challengeId)
     const [challengeInfo, participantInfo] = await Promise.all([
       connection.getAccountInfo(challenge),
       connection.getAccountInfo(participantPda(challenge, publicKey)),
@@ -213,7 +218,7 @@ function MyChallengeBody({ running, upcoming }: Props) {
     const today = running ? Math.floor((now - running.startMs) / CHALLENGE.dayMs) : null
     return (
       <>
-        <DayGrid startMs={shown.startMs} days={emptyDays} goalSeconds={0} today={today} />
+        <DayGrid track={CHALLENGE} startMs={shown.startMs} days={emptyDays} goalSeconds={0} today={today} />
         {!publicKey ? (
           <p className="card-empty card-center">
             Connect your wallet and join the next challenge!
@@ -241,19 +246,21 @@ function MyChallengeBody({ running, upcoming }: Props) {
 
   const claimed = Boolean(stake?.claimed) || claim.kind === 'done'
   const claimable = Boolean(stake?.finalized && stake.passedEveryDay && !claimed)
-  const startMs = CHALLENGE.launchMs + progress.challengeId * CHALLENGE.durationMs
+  const track = trackConfig(progress.track)
+  const startMs = track.launchMs + progress.challengeId * track.durationMs
   const challengeShown: Challenge = {
     id: progress.challengeId,
-    label: `${CHALLENGE.name} #${progress.challengeId}`,
+    track: progress.track,
+    label: `${track.name} #${progress.challengeId}`,
     startMs,
-    endMs: startMs + CHALLENGE.durationMs,
+    endMs: startMs + track.durationMs,
   }
 
   const sendClaim = async () => {
     if (!signTransaction || !anchorWallet) return
     setClaim({ kind: 'sending' })
     try {
-      const challenge = challengePda(CHALLENGE.track, progress.challengeId)
+      const challenge = challengePda(progress.track, progress.challengeId)
       const provider = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
       const program = new Program(idl as unknown as Idl, provider)
       const ix = await program.methods
@@ -286,6 +293,7 @@ function MyChallengeBody({ running, upcoming }: Props) {
   return (
     <>
       <DayGrid
+        track={track}
         startMs={startMs}
         days={progress.days}
         goalSeconds={progress.goalSeconds}
@@ -293,7 +301,7 @@ function MyChallengeBody({ running, upcoming }: Props) {
       />
 
       <p className="card-subject">
-        {CHALLENGE.name} #{progress.challengeId}
+        {track.name} #{progress.challengeId}
         {progress.running ? ' · running' : progress.over ? ' · finished' : ' · starts soon'}
       </p>
 

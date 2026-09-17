@@ -61,6 +61,37 @@ pub struct Participant {
 }
 
 /// One Discord account can join a challenge only once.
+/// Stops one person from being in challenges on two tracks at the same time.
+/// Holds the period of their latest challenge; consecutive challenges on one track merge into it.
+#[account]
+#[derive(InitSpace)]
+pub struct ParticipationLock {
+    pub track: u8,
+    pub start_ts: i64,
+    pub end_ts: i64,
+    pub bump: u8,
+}
+
+impl ParticipationLock {
+    /// Fails if the new challenge overlaps a challenge on another track, then covers it.
+    pub fn claim(&mut self, track: u8, start_ts: i64, end_ts: i64, bump: u8) -> Result<()> {
+        let empty = self.end_ts == 0;
+        let overlaps = start_ts < self.end_ts && self.start_ts < end_ts;
+        require!(empty || self.track == track || !overlaps, ErrorCode::OverlappingChallenge);
+
+        if !empty && self.track == track && start_ts <= self.end_ts && self.start_ts <= end_ts {
+            self.start_ts = self.start_ts.min(start_ts);
+            self.end_ts = self.end_ts.max(end_ts);
+        } else {
+            self.track = track;
+            self.start_ts = start_ts;
+            self.end_ts = end_ts;
+        }
+        self.bump = bump;
+        Ok(())
+    }
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct DiscordLink {

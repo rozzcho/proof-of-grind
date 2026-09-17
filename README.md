@@ -34,7 +34,7 @@ The server key both co-signs registrations and records progress, so it needs a l
 
 ### Test track
 
-Set `CHALLENGE_TRACK=2` in `server/.env` to run the short track: challenges start every 10 minutes and
+Set `CHALLENGE_TRACKS=2` in `server/.env` to run the short track: challenges start every 10 minutes and
 have five 2-minute "days". Set `DAILY_GOAL_SECONDS` low (e.g. 30) to match. It exercises the same code as
 the weekly track, so the full cycle can be checked in about 15 minutes.
 

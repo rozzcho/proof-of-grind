@@ -7,7 +7,7 @@ use anchor_spl::{
 use crate::{
     constants::*,
     error::ErrorCode,
-    state::{Challenge, DiscordLink, Participant},
+    state::{Challenge, DiscordLink, Participant, ParticipationLock},
 };
 
 #[derive(Accounts)]
@@ -26,7 +26,7 @@ pub struct Register<'info> {
         seeds = [CHALLENGE_SEED, &[track], &challenge_id.to_le_bytes()],
         bump
     )]
-    pub challenge: Account<'info, Challenge>,
+    pub challenge: Box<Account<'info, Challenge>>,
     // `init` fails if this wallet already registered for the challenge.
     #[account(
         init,
@@ -35,7 +35,7 @@ pub struct Register<'info> {
         seeds = [PARTICIPANT_SEED, challenge.key().as_ref(), user.key().as_ref()],
         bump
     )]
-    pub participant: Account<'info, Participant>,
+    pub participant: Box<Account<'info, Participant>>,
     // `init` fails if this Discord account already joined the challenge.
     #[account(
         init,
@@ -44,7 +44,23 @@ pub struct Register<'info> {
         seeds = [DISCORD_SEED, challenge.key().as_ref(), &discord_id.to_le_bytes()],
         bump
     )]
-    pub discord_link: Account<'info, DiscordLink>,
+    pub discord_link: Box<Account<'info, DiscordLink>>,
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + ParticipationLock::INIT_SPACE,
+        seeds = [WALLET_LOCK_SEED, user.key().as_ref()],
+        bump
+    )]
+    pub wallet_lock: Box<Account<'info, ParticipationLock>>,
+    #[account(
+        init_if_needed,
+        payer = user,
+        space = 8 + ParticipationLock::INIT_SPACE,
+        seeds = [DISCORD_LOCK_SEED, &discord_id.to_le_bytes()],
+        bump
+    )]
+    pub discord_lock: Box<Account<'info, ParticipationLock>>,
     #[account(address = USDC_MINT, mint::token_program = token_program)]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
@@ -53,7 +69,7 @@ pub struct Register<'info> {
         token::authority = user,
         token::token_program = token_program,
     )]
-    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
+    pub user_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
         payer = user,
@@ -61,7 +77,7 @@ pub struct Register<'info> {
         associated_token::authority = challenge,
         associated_token::token_program = token_program,
     )]
-    pub vault: InterfaceAccount<'info, TokenAccount>,
+    pub vault: Box<InterfaceAccount<'info, TokenAccount>>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -90,6 +106,12 @@ pub fn handle_register(
         now < start_ts && now >= start_ts - config.duration,
         ErrorCode::RegistrationClosed
     );
+
+    // Neither this wallet nor this Discord account may be in another track's challenge at the same time.
+    let wallet_bump = ctx.bumps.wallet_lock;
+    ctx.accounts.wallet_lock.claim(track, start_ts, end_ts, wallet_bump)?;
+    let discord_bump = ctx.bumps.discord_lock;
+    ctx.accounts.discord_lock.claim(track, start_ts, end_ts, discord_bump)?;
 
     let challenge = &mut ctx.accounts.challenge;
     if challenge.start_ts == 0 {

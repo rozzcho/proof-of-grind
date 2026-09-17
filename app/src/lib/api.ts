@@ -21,12 +21,15 @@ export function logout() {
   return request<{ ok: true }>('/auth/logout', { method: 'POST' })
 }
 
-export function getRegisterTx(wallet: string, multiply: number) {
-  return request<{ challengeId: number; transaction: string; lastValidBlockHeight: number }>('/api/register-tx', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wallet, multiply }),
-  })
+export function getRegisterTx(wallet: string, multiply: number, track: number) {
+  return request<{ track: number; challengeId: number; transaction: string; lastValidBlockHeight: number }>(
+    '/api/register-tx',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wallet, multiply, track }),
+    },
+  )
 }
 
 export function confirmRegistration() {

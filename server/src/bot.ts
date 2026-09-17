@@ -2,8 +2,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 import { mkdirSync } from 'node:fs'
 import { ChannelType, Client, Events, GatewayIntentBits, type VoiceState } from 'discord.js'
-import { botConfigured, config } from './config.ts'
+import { botConfigured, config, discordFor } from './config.ts'
 import {
+  ACTIVE_TRACKS,
   challengeState,
   dayEndMs,
   dayIndexAt,
@@ -16,8 +17,8 @@ import {
   rollover,
   runningChallengeId,
   tally,
-  TRACK,
-  trackConfig,
+  trackConfigOf,
+  TRACKS,
 } from './solana.ts'
 import { GrindTracker, type Slot } from './tracker.ts'
 
@@ -34,28 +35,39 @@ const PARTICIPANT_REFRESH_MS = 60_000
 const ROLE_SYNC_MS = 10 * 60_000
 const CHAIN_SYNC_MS = 60_000
 
-// Discord ids registered for the running or the upcoming weekly challenge.
-// Time is recorded for both; pass/fail only looks at days inside a challenge's week.
-let participants = new Set<string>()
+type Registration = { track: number; challengeId: number }
 
-/** Which challenge each participant's time counts toward, by Discord id. */
-let challengeOf = new Map<string, number>()
+/**
+ * Running and upcoming challenges each Discord id joined, across the active tracks.
+ * Time is counted for all of them; it goes to whichever challenge is running at that moment.
+ */
+let registrations = new Map<string, Registration[]>()
 
 function slotOf(discordId: string, atMs: number): Slot | null {
-  const challengeId = challengeOf.get(discordId)
-  if (challengeId === undefined) return null
-  const dayIndex = dayIndexAt(challengeId, atMs)
-  if (dayIndex === null) return null
-  return { track: TRACK, challengeId, dayIndex, endMs: dayEndMs(challengeId, dayIndex) }
+  for (const { track, challengeId } of registrations.get(discordId) ?? []) {
+    const dayIndex = dayIndexAt(track, challengeId, atMs)
+    if (dayIndex !== null) return { track, challengeId, dayIndex, endMs: dayEndMs(track, challengeId, dayIndex) }
+  }
+  return null
 }
 
-async function currentParticipantIds() {
-  const running = runningChallengeId()
-  const [open, current] = await Promise.all([
-    registeredDiscordIds(openChallengeId()),
-    running === null ? [] : registeredDiscordIds(running),
-  ])
-  return new Set([...open, ...current])
+/** The running and the upcoming challenge of a track. */
+function currentChallenges(track: number) {
+  const running = runningChallengeId(track)
+  return [openChallengeId(track), ...(running === null ? [] : [running])]
+}
+
+async function registrationsOn(track: number) {
+  const perChallenge = await Promise.all(
+    currentChallenges(track).map(async (challengeId) =>
+      (await registeredDiscordIds(track, challengeId)).map((discordId) => ({ discordId, track, challengeId })),
+    ),
+  )
+  return perChallenge.flat()
+}
+
+function voiceChannels() {
+  return [...new Set(ACTIVE_TRACKS.map((track) => discordFor(track).voiceChannelId).filter(Boolean))] as string[]
 }
 
 export async function startBot() {
@@ -74,9 +86,10 @@ export async function startBot() {
   await client.login(config.discord.botToken)
 }
 
-/** Counts only registered participants in the challenge channel with their camera on. */
+/** Counts only participants in their own track's channel with their camera on. */
 function isCounting(state: VoiceState) {
-  return state.channelId === config.discord.voiceChannelId && Boolean(state.selfVideo) && participants.has(state.id)
+  if (!state.channelId || !state.selfVideo) return false
+  return (registrations.get(state.id) ?? []).some(({ track }) => discordFor(track).voiceChannelId === state.channelId)
 }
 
 function evaluate(state: VoiceState) {
@@ -90,93 +103,100 @@ function evaluate(state: VoiceState) {
   }
 }
 
-/** Re-checks everyone currently in the challenge channel (startup, new registrations). */
-async function evaluateChannel() {
-  if (!client?.isReady() || !config.discord.voiceChannelId) return
-  const channel = await client.channels.fetch(config.discord.voiceChannelId).catch(() => null)
-  if (channel?.type !== ChannelType.GuildVoice) {
-    console.warn('[tracker] voice channel not found or not visible to the bot')
-    return
+/** Re-checks everyone currently in the challenge channels (startup, new registrations). */
+async function evaluateChannels() {
+  if (!client?.isReady()) return
+  for (const channelId of voiceChannels()) {
+    const channel = await client.channels.fetch(channelId).catch(() => null)
+    if (channel?.type !== ChannelType.GuildVoice) {
+      console.warn(`[tracker] voice channel ${channelId} not found or not visible to the bot`)
+      continue
+    }
+    for (const member of channel.members.values()) evaluate(member.voice)
   }
-  for (const member of channel.members.values()) evaluate(member.voice)
 }
 
 async function refreshParticipants() {
-  const running = runningChallengeId()
-  const open = openChallengeId()
-  const [runningIds, openIds] = await Promise.all([
-    running === null ? [] : registeredDiscordIds(running),
-    registeredDiscordIds(open),
-  ])
-  // Time counts toward the challenge being run; registrations for the next one count once it starts.
-  challengeOf = new Map([...openIds.map((id) => [id, open] as const), ...runningIds.map((id) => [id, running!] as const)])
-  participants = new Set(challengeOf.keys())
-  await evaluateChannel()
+  const next = new Map<string, Registration[]>()
+  for (const track of ACTIVE_TRACKS) {
+    for (const { discordId, ...registration } of await registrationsOn(track)) {
+      next.set(discordId, [...(next.get(discordId) ?? []), registration])
+    }
+  }
+  registrations = next
+  await evaluateChannels()
 }
 
 /** Puts days that hit the goal on chain, retrying anything that failed earlier. */
 async function recordPending() {
-  const pending = tracker.pendingRecords().filter((record) => record.track === TRACK)
+  const pending = tracker.pendingRecords().filter((record) => TRACKS[record.track])
   if (pending.length === 0) return
-  const byChallenge = new Map<number, Awaited<ReturnType<typeof participantsOf>>>()
+  const byChallenge = new Map<string, Awaited<ReturnType<typeof participantsOf>>>()
   for (const record of pending) {
+    const key = `${record.track}:${record.challengeId}`
     try {
-      if (!byChallenge.has(record.challengeId)) {
-        byChallenge.set(record.challengeId, await participantsOf(record.challengeId))
-      }
-      const participant = byChallenge.get(record.challengeId)!.find((p) => p.discordId === record.discordId)
+      if (!byChallenge.has(key)) byChallenge.set(key, await participantsOf(record.track, record.challengeId))
+      const participant = byChallenge.get(key)!.find((p) => p.discordId === record.discordId)
       if (!participant) continue
-      await recordProgress(record.challengeId, participant.user, record.dayIndex)
+      await recordProgress(record.track, record.challengeId, participant.user, record.dayIndex)
       tracker.markRecorded(record)
-      console.log(`[chain] recorded day ${record.dayIndex} of #${record.challengeId} for ${record.discordId}`)
+      console.log(
+        `[chain] recorded day ${record.dayIndex} of track ${record.track} #${record.challengeId} for ${record.discordId}`,
+      )
     } catch (err) {
-      console.error(`[chain] could not record day ${record.dayIndex} of #${record.challengeId}`, err)
+      console.error(`[chain] could not record day ${record.dayIndex} of track ${record.track} #${record.challengeId}`, err)
     }
   }
 }
 
 /** After a challenge ends: count everyone, then roll the pool over if nobody passed. */
-async function settleFinishedChallenge() {
-  const running = runningChallengeId()
+async function settleFinishedChallenge(track: number) {
+  const running = runningChallengeId(track)
   const finished = running === null ? null : running - 1
   if (finished === null || finished < 0) return
-  const state = await challengeState(finished)
+  const state = await challengeState(track, finished)
   if (!state) return
 
   if (!state.finalized) {
-    for (const participant of await participantsOf(finished)) {
+    for (const participant of await participantsOf(track, finished)) {
       if (participant.tallied) continue
-      await tally(finished, participant.user).catch((err) => console.error('[chain] tally failed', err))
+      await tally(track, finished, participant.user).catch((err) => console.error('[chain] tally failed', err))
     }
-    console.log(`[chain] tallied challenge #${finished}`)
+    console.log(`[chain] tallied track ${track} #${finished}`)
   }
 
-  const settled = await challengeState(finished)
+  const settled = await challengeState(track, finished)
   if (settled?.finalized && settled.winnerShares.isZero() && !settled.rolledOver) {
-    const next = openChallengeId()
-    if (await challengeState(next)) {
-      await rollover(finished, next)
-      console.log(`[chain] nobody passed #${finished}: prize pool rolled over into #${next}`)
+    const next = openChallengeId(track)
+    if (await challengeState(track, next)) {
+      await rollover(track, finished, next)
+      console.log(`[chain] nobody passed track ${track} #${finished}: prize pool rolled over into #${next}`)
     }
   }
 }
 
 async function syncChain() {
   await recordPending()
-  await settleFinishedChallenge()
+  for (const track of ACTIVE_TRACKS) {
+    await settleFinishedChallenge(track).catch((err) => console.error(`[chain] settling track ${track} failed`, err))
+  }
 }
 
 async function startTracking() {
-  if (!config.discord.voiceChannelId) {
-    console.warn('[tracker] DISCORD_VOICE_CHANNEL_ID not set — time tracking disabled')
+  if (voiceChannels().length === 0) {
+    console.warn('[tracker] no voice channel set (DISCORD_VOICE_CHANNEL_ID) — time tracking disabled')
     return
   }
   tracker.setSlotResolver(slotOf)
   await refreshParticipants()
   const balance = await oracleBalanceSol()
-  console.log(
-    `[tracker] track ${TRACK}, ${participants.size} participants, goal ${config.dailyGoalSeconds}s per ${trackConfig.dayMs / 1000}s day`,
-  )
+  for (const track of ACTIVE_TRACKS) {
+    const { name, dayMs } = trackConfigOf(track)
+    const { voiceChannelId } = discordFor(track)
+    if (!voiceChannelId) console.warn(`[tracker] ${name}: no voice channel set — its time is not tracked`)
+    console.log(`[tracker] ${name} (track ${track}): goal ${config.dailyGoalSeconds}s per ${dayMs / 1000}s day`)
+  }
+  console.log(`[tracker] ${registrations.size} participants`)
   if (balance < 0.05) console.warn(`[chain] oracle ${oracleAddress} has only ${balance} SOL — top it up`)
   setInterval(() => tracker.flush(), FLUSH_INTERVAL_MS)
   setInterval(() => refreshParticipants().catch((err) => console.error('[tracker] refresh failed', err)), PARTICIPANT_REFRESH_MS)
@@ -188,54 +208,72 @@ async function startTracking() {
 }
 
 /** Call after a registration confirms so an already-streaming user starts counting right away. */
-export async function addParticipant(discordId: string) {
-  participants.add(discordId)
-  await evaluateChannel()
+export async function addParticipant() {
+  await refreshParticipants()
 }
 
-/** Gives the paid role; adds the user to the server first if needed (requires their OAuth token). */
-export async function grantRole(discordId: string, accessToken?: string): Promise<GrantResult> {
+function rolesFor(tracks: number[]) {
+  return [...new Set(tracks.map((track) => discordFor(track).roleId).filter(Boolean))] as string[]
+}
+
+/**
+ * Gives the role of each track the user joined; adds them to the server first if needed
+ * (requires their OAuth token).
+ */
+export async function grantRole(discordId: string, tracks: number[], accessToken?: string): Promise<GrantResult> {
   if (!client?.isReady()) return { roleGranted: false, joinedGuild: false, reason: 'bot-not-ready' }
-  const roleId = config.discord.roleId!
+  const roleIds = rolesFor(tracks)
+  if (roleIds.length === 0) return { roleGranted: false, joinedGuild: false, reason: 'role-not-configured' }
   const guild = await client.guilds.fetch(config.discord.guildId!)
 
   const member = await guild.members.fetch(discordId).catch(() => null)
   if (!member) {
     if (!accessToken) return { roleGranted: false, joinedGuild: false, reason: 'not-in-guild' }
-    await guild.members.add(discordId, { accessToken, roles: [roleId] })
+    await guild.members.add(discordId, { accessToken, roles: roleIds })
     return { roleGranted: true, joinedGuild: true }
   }
-  if (!member.roles.cache.has(roleId)) {
-    await member.roles.add(roleId, 'Paid Weekly Challenge #0')
-  }
+  const missing = roleIds.filter((roleId) => !member.roles.cache.has(roleId))
+  if (missing.length > 0) await member.roles.add(missing, 'Paid a challenge entry')
   return { roleGranted: true, joinedGuild: false }
 }
 
 /**
- * Keeps the challenge role in line with the chain: participants of the running or upcoming
- * challenge have it; last week's participants who did not sign up again lose it.
+ * Keeps each track's role in line with the chain: participants of its running or upcoming
+ * challenge have it; the previous challenge's participants who did not sign up again lose it.
+ * Tracks that share a role are merged, so one track never revokes a role another track needs.
  */
 async function syncRoles() {
   if (!client?.isReady()) return
-  const allowed = await currentParticipantIds()
-  const running = runningChallengeId()
-  const previous = running === null || running === 0 ? [] : await registeredDiscordIds(running - 1)
-
-  let granted = 0
-  for (const id of allowed) {
-    const result = await grantRole(id).catch(() => null)
-    if (result?.roleGranted) granted++
+  const allowed = new Map<string, Set<string>>() // roleId -> discord ids
+  const previous = new Map<string, Set<string>>()
+  for (const track of ACTIVE_TRACKS) {
+    const { roleId } = discordFor(track)
+    if (!roleId) continue
+    const running = runningChallengeId(track)
+    const current = await registrationsOn(track)
+    const last = running === null || running === 0 ? [] : await registeredDiscordIds(track, running - 1)
+    allowed.set(roleId, new Set([...(allowed.get(roleId) ?? []), ...current.map((r) => r.discordId)]))
+    previous.set(roleId, new Set([...(previous.get(roleId) ?? []), ...last]))
   }
 
-  const roleId = config.discord.roleId!
   const guild = await client.guilds.fetch(config.discord.guildId!)
+  let granted = 0
   let revoked = 0
-  for (const id of previous.filter((id) => !allowed.has(id))) {
-    const member = await guild.members.fetch(id).catch(() => null)
-    if (member?.roles.cache.has(roleId)) {
-      await member.roles.remove(roleId, 'Weekly challenge ended').catch(() => null)
-      revoked++
+  for (const [roleId, ids] of allowed) {
+    for (const id of ids) {
+      const member = await guild.members.fetch(id).catch(() => null)
+      if (!member) continue
+      if (!member.roles.cache.has(roleId)) await member.roles.add(roleId, 'Paid a challenge entry').catch(() => null)
+      granted++
+    }
+    for (const id of previous.get(roleId) ?? []) {
+      if (ids.has(id)) continue
+      const member = await guild.members.fetch(id).catch(() => null)
+      if (member?.roles.cache.has(roleId)) {
+        await member.roles.remove(roleId, 'Challenge ended').catch(() => null)
+        revoked++
+      }
     }
   }
-  console.log(`[bot] synced roles: ${granted}/${allowed.size} granted, ${revoked} revoked`)
+  console.log(`[bot] synced roles: ${granted} granted, ${revoked} revoked`)
 }

@@ -20,12 +20,18 @@ export const config = {
     clientSecret: optional('DISCORD_CLIENT_SECRET'),
     botToken: optional('DISCORD_BOT_TOKEN'),
     guildId: optional('DISCORD_GUILD_ID'),
+    // Weekly (and the test track) use these; Biweekly has its own room and role.
     roleId: optional('DISCORD_ROLE_ID'),
     voiceChannelId: optional('DISCORD_VOICE_CHANNEL_ID'),
+    biweeklyRoleId: optional('DISCORD_BIWEEKLY_ROLE_ID'),
+    biweeklyVoiceChannelId: optional('DISCORD_BIWEEKLY_VOICE_CHANNEL_ID'),
   },
   dailyGoalSeconds: Number(process.env.DAILY_GOAL_SECONDS ?? 3 * 60 * 60),
-  // 0 = weekly, 2 = the short test track (see the program's constants)
-  challengeTrack: Number(process.env.CHALLENGE_TRACK ?? 0),
+  // Tracks this server runs, e.g. "0,1". 0 = Weekly, 1 = Biweekly, 2 = the short test track.
+  // CHALLENGE_TRACK (a single track) still works for older setups.
+  challengeTracks: (process.env.CHALLENGE_TRACKS ?? process.env.CHALLENGE_TRACK ?? '0')
+    .split(',')
+    .map((track) => Number(track.trim())),
   flushIntervalMs: Number(process.env.FLUSH_INTERVAL_MS ?? 30_000),
   dbPath: process.env.DB_PATH ?? new URL('../data/grind.db', import.meta.url),
 }
@@ -37,4 +43,13 @@ export const secureCookies = config.appUrl.startsWith('https://')
 export const redirectUri = `${config.appUrl}/auth/discord/callback`
 
 export const oauthConfigured = Boolean(config.discord.clientId && config.discord.clientSecret)
+const BIWEEKLY = 1
+
+/** The Discord role and voice channel for a track's participants. */
+export function discordFor(track: number) {
+  return track === BIWEEKLY
+    ? { roleId: config.discord.biweeklyRoleId, voiceChannelId: config.discord.biweeklyVoiceChannelId }
+    : { roleId: config.discord.roleId, voiceChannelId: config.discord.voiceChannelId }
+}
+
 export const botConfigured = Boolean(config.discord.botToken && config.discord.guildId && config.discord.roleId)

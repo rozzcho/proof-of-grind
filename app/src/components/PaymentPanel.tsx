@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { Transaction } from '@solana/web3.js'
-import { CHALLENGE, NETWORK_LABEL, explorerTxUrl } from '../config'
+import { CHALLENGE, NETWORK_LABEL, RULES_URL, explorerTxUrl, trackConfig } from '../config'
 import {
   DISCORD_LOGIN_URL,
   confirmRegistration,
@@ -14,7 +14,7 @@ import {
 } from '../lib/api'
 import { challengePda, participantPda, usdcAta } from '../lib/program'
 import { ExpiredError, signAndConfirm } from '../lib/send'
-import type { OpenChallenge } from '../lib/schedule'
+import type { Challenge } from '../lib/schedule'
 
 type Status =
   | { kind: 'loading' }
@@ -37,6 +37,7 @@ function shorten(address: string) {
 function errorMessage(err: unknown): string {
   const text = err instanceof Error ? err.message || err.name : String(err)
   if (/already in use/i.test(text)) return 'You are already registered.'
+  if (/OverlappingChallenge|another track/i.test(text)) return 'You are already in a challenge on another track at that time.'
   if (/insufficient funds/i.test(text)) return 'Not enough USDC.'
   if (/User rejected|rejected the request/i.test(text)) return 'Transaction was cancelled.'
   if (/Failed to fetch|Request failed \(50[24]\)/i.test(text)) return 'Server is offline. Start it with `npm --prefix server run dev`.'
@@ -63,7 +64,7 @@ function accessMessage(access: Access) {
 }
 
 type Props = {
-  challenge: OpenChallenge
+  challenge: Challenge
   open: boolean
   discordError?: boolean
   /** Lets a surrounding modal refuse to close while a payment is in flight. */
@@ -83,9 +84,14 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const [access, setAccess] = useState<Access>({ kind: 'idle' })
   const [multiply, setMultiply] = useState(1)
   const [showInfo, setShowInfo] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const infoRef = useRef<HTMLParagraphElement>(null)
   const infoButtonRef = useRef<HTMLButtonElement>(null)
-  const challenge = useMemo(() => challengePda(CHALLENGE.track, openChallenge.id), [openChallenge.id])
+  const challenge = useMemo(
+    () => challengePda(openChallenge.track, openChallenge.id),
+    [openChallenge.track, openChallenge.id],
+  )
+  const entryFeeUsdc = trackConfig(openChallenge.track).entryFeeUsdc
 
   const busy = status.kind === 'paying' || access.kind === 'checking'
   const busyRef = useRef(busy)
@@ -94,7 +100,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const registered =
     status.kind === 'registered' || status.kind === 'success' ? true : status.kind === 'ready' ? false : null
   useEffect(() => onRegisteredChange?.(registered), [registered, onRegisteredChange])
-  const total = CHALLENGE.entryFeeUsdc * multiply
+  const total = entryFeeUsdc * multiply
   const discord = me?.discord ?? null
 
   const load = useCallback(async () => {
@@ -171,9 +177,13 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
     setStatus({ kind: 'paying' })
     try {
       // Server builds the transaction and co-signs it for the verified Discord account.
-      const { challengeId, transaction, lastValidBlockHeight } = await getRegisterTx(publicKey.toBase58(), multiply)
+      const { challengeId, transaction, lastValidBlockHeight } = await getRegisterTx(
+        publicKey.toBase58(),
+        multiply,
+        openChallenge.track,
+      )
       if (challengeId !== openChallenge.id) {
-        throw new Error(`Registration moved to Weekly Challenge #${challengeId}. Reopen to continue.`)
+        throw new Error(`Registration moved on to #${challengeId}. Reopen to continue.`)
       }
       const bytes = Buffer.from(transaction, 'base64')
 
@@ -192,7 +202,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
       } catch (err) {
         if (!(err instanceof ExpiredError)) throw err
         // Approval took too long: build a fresh transaction and ask for one more signature.
-        const retry = await getRegisterTx(publicKey.toBase58(), multiply)
+        const retry = await getRegisterTx(publicKey.toBase58(), multiply, openChallenge.track)
         signature = await signAndConfirm(
           connection,
           signTransaction,
@@ -264,7 +274,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
       type="button"
       className="pay-button"
       onClick={pay}
-      disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol}
+      disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol || !agreed}
     >
       {status.kind === 'paying' ? 'Processing…' : `Pay ${formatUsdc(total)} USDC`}
     </button>
@@ -274,7 +284,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
     <div className="pay-box">
       <dl className="pay-rows">
         <dt>Entry fee</dt>
-        <dd>{CHALLENGE.entryFeeUsdc} USDC</dd>
+        <dd>{entryFeeUsdc} USDC</dd>
         <dt className="pay-multiply-label">
           Multiply
           <button
@@ -350,6 +360,22 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
         <p className={message?.error ? 'pay-message pay-error' : 'pay-message'} aria-live="polite">
           {message?.text ?? '\u00a0'}
         </p>
+        {/* Kept in place (only hidden) once registered, so the form does not change height. */}
+        <label className="pay-agree" data-hidden={done}>
+          <input
+            id={`agree-rules-${openChallenge.track}`}
+            type="checkbox"
+            checked={agreed || done}
+            onChange={(e) => setAgreed(e.target.checked)}
+            disabled={done || busy}
+          />
+          <span>
+            I agree to the{' '}
+            <a href={RULES_URL} target="_blank" rel="noopener noreferrer">
+              Rules
+            </a>
+          </span>
+        </label>
         {action}
       </div>
     </div>

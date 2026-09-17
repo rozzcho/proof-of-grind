@@ -4,7 +4,8 @@ import { formatCountdown, type Challenge } from '../lib/schedule'
 import { formatDateTime, useTimeZoneMode } from '../lib/timeZone'
 
 type Props = {
-  title: string
+  /** Card title; left out for a second section inside the same card. */
+  title?: string
   challenge: Challenge | null
   /** Shown as a countdown to registration closing (= the challenge starting). */
   countdownTo?: number
@@ -55,12 +56,12 @@ export function ChallengeDates({ challenge }: { challenge: Challenge }) {
 
 /** The card's content without its frame. */
 export function ChallengeCardBody({ title, challenge, countdownTo, emptyText, children }: Props) {
-  const state = useChallengeState(challenge?.id ?? -1)
+  const state = useChallengeState(challenge?.id ?? -1, { track: challenge?.track })
   const left = useCountdown(countdownTo)
 
   return (
     <>
-      <h2 className="card-title">{title}</h2>
+      {title && <h2 className="card-title">{title}</h2>}
       {countdownTo && (
         <p className="card-countdown" aria-label="Time left to register">
           {formatCountdown(left)}

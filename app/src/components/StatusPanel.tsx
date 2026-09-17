@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { openWeeklyChallenge, runningWeeklyChallenge } from '../lib/schedule'
+import { BIWEEKLY } from '../config'
+import { openChallenge, openWeeklyChallenge, runningWeeklyChallenge } from '../lib/schedule'
 import { MyChallenge } from './MyChallenge'
 import { NextChallengeCard } from './NextChallengeCard'
 
@@ -18,7 +19,7 @@ export function StatusPanel() {
     <section className="status" aria-label="Challenges">
       <div className="cards">
         <MyChallenge running={running} upcoming={open} />
-        <NextChallengeCard challenge={open} />
+        <NextChallengeCard challenge={open} biweekly={openChallenge(BIWEEKLY, now)} />
       </div>
     </section>
   )

@@ -1,22 +1,29 @@
-import { useEffect, useState } from 'react'
-import { CHALLENGE } from '../config'
+import { CHALLENGE, type TrackConfig } from '../config'
 
-export type Challenge = { id: number; label: string; startMs: number; endMs: number }
-export type OpenChallenge = Challenge
+export type Challenge = { track: number; id: number; label: string; startMs: number; endMs: number }
 
-function weekly(id: number): Challenge {
-  const startMs = CHALLENGE.launchMs + id * CHALLENGE.durationMs
-  return { id, label: `${CHALLENGE.name} #${id}`, startMs, endMs: startMs + CHALLENGE.durationMs }
+export function challengeOn(track: TrackConfig, id: number): Challenge {
+  const startMs = track.launchMs + id * track.durationMs
+  return { track: track.track, id, label: `${track.name} #${id}`, startMs, endMs: startMs + track.durationMs }
 }
 
-/** The weekly challenge taking registrations: it starts next Monday 00:00 UTC. */
-export function openWeeklyChallenge(now = Date.now()): Challenge {
-  return weekly(now < CHALLENGE.launchMs ? 0 : Math.floor((now - CHALLENGE.launchMs) / CHALLENGE.durationMs) + 1)
+/** The challenge taking registrations on a track: the next one to start. */
+export function openChallenge(track: TrackConfig, now = Date.now()): Challenge {
+  return challengeOn(track, now < track.launchMs ? 0 : Math.floor((now - track.launchMs) / track.durationMs) + 1)
 }
 
-/** The challenge being run this week, or null before the first one starts. */
-export function runningWeeklyChallenge(now = Date.now()): Challenge | null {
-  return now < CHALLENGE.launchMs ? null : weekly(Math.floor((now - CHALLENGE.launchMs) / CHALLENGE.durationMs))
+/** The challenge being run on a track, or null before the first one starts. */
+export function runningChallenge(track: TrackConfig, now = Date.now()): Challenge | null {
+  return now < track.launchMs ? null : challengeOn(track, Math.floor((now - track.launchMs) / track.durationMs))
+}
+
+/** The site's main track (Weekly; the test track locally). */
+export function openWeeklyChallenge(now = Date.now()) {
+  return openChallenge(CHALLENGE, now)
+}
+
+export function runningWeeklyChallenge(now = Date.now()) {
+  return runningChallenge(CHALLENGE, now)
 }
 
 /** Seconds left as HH:MM:SS, counting hours past 24 (e.g. 56:45:03). */
@@ -24,19 +31,4 @@ export function formatCountdown(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000))
   const parts = [Math.floor(total / 3600), Math.floor(total / 60) % 60, total % 60]
   return parts.map((n) => String(n).padStart(2, '0')).join(':')
-}
-
-/** Re-evaluates every 30s so the label rolls over to the next week on Monday 00:00 UTC. */
-export function useOpenWeeklyChallenge() {
-  const [challenge, setChallenge] = useState(() => openWeeklyChallenge())
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setChallenge((current) => {
-        const next = openWeeklyChallenge()
-        return next.id === current.id ? current : next
-      })
-    }, 30_000)
-    return () => clearInterval(timer)
-  }, [])
-  return challenge
 }

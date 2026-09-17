@@ -21,6 +21,13 @@ pub const PARTICIPANT_SEED: &[u8] = b"participant";
 #[constant]
 pub const DISCORD_SEED: &[u8] = b"discord";
 
+/// One participation lock per wallet and one per Discord account, shared by every track.
+#[constant]
+pub const WALLET_LOCK_SEED: &[u8] = b"wallet_lock";
+
+#[constant]
+pub const DISCORD_LOCK_SEED: &[u8] = b"discord_lock";
+
 #[constant]
 pub const MAX_MULTIPLY: u8 = 10;
 
@@ -34,6 +41,10 @@ pub const PAYOUT_UNIT: u64 = 10_000;
 
 #[constant]
 pub const TRACK_WEEKLY: u8 = 0;
+
+/// Opens every other week and runs for two weeks.
+#[constant]
+pub const TRACK_BIWEEKLY: u8 = 1;
 
 /// Short track for testing the full cycle without waiting a week.
 #[constant]
@@ -55,6 +66,24 @@ pub const WEEKLY_DAYS: u8 = 7;
 /// 7 USDC (6 decimals) per 1x.
 #[constant]
 pub const WEEKLY_ENTRY_FEE: u64 = 7_000_000;
+
+/// Placeholder until the first Biweekly date is decided: Monday 2026-10-05 00:00 UTC.
+/// Registration stays closed until then (the server only co-signs the Weekly track).
+#[constant]
+pub const BIWEEKLY_LAUNCH_TS: i64 = WEEKLY_LAUNCH_TS + 2 * WEEK_SECONDS;
+
+#[constant]
+pub const BIWEEKLY_DURATION: i64 = 2 * WEEK_SECONDS;
+
+#[constant]
+pub const BIWEEKLY_DAY_SECONDS: i64 = 24 * 60 * 60;
+
+#[constant]
+pub const BIWEEKLY_DAYS: u8 = 14;
+
+/// 10 USDC (6 decimals) per 1x.
+#[constant]
+pub const BIWEEKLY_ENTRY_FEE: u64 = 10_000_000;
 
 /// Test challenges run every 10 minutes, with five 2-minute "days".
 #[constant]
@@ -98,6 +127,13 @@ pub const fn track_config(track: u8) -> Option<TrackConfig> {
             day_seconds: WEEKLY_DAY_SECONDS,
             days: WEEKLY_DAYS,
             entry_fee: WEEKLY_ENTRY_FEE,
+        }),
+        TRACK_BIWEEKLY => Some(TrackConfig {
+            launch_ts: BIWEEKLY_LAUNCH_TS,
+            duration: BIWEEKLY_DURATION,
+            day_seconds: BIWEEKLY_DAY_SECONDS,
+            days: BIWEEKLY_DAYS,
+            entry_fee: BIWEEKLY_ENTRY_FEE,
         }),
         TRACK_TEST => Some(TrackConfig {
             launch_ts: TEST_LAUNCH_TS,

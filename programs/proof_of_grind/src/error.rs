@@ -34,6 +34,8 @@ pub enum ErrorCode {
     AlreadyRolledOver,
     #[msg("The prize pool can only roll over into a later challenge on the same track")]
     InvalidRolloverTarget,
+    #[msg("You are already in a challenge on another track at that time")]
+    OverlappingChallenge,
     #[msg("Arithmetic overflow")]
     MathOverflow,
 }

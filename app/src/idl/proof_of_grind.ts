@@ -252,6 +252,63 @@ export type ProofOfGrind = {
           }
         },
         {
+          "name": "walletLock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  108,
+                  108,
+                  101,
+                  116,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "discordLock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  105,
+                  115,
+                  99,
+                  111,
+                  114,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "discordId"
+              }
+            ]
+          }
+        },
+        {
           "name": "mint",
           "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         },
@@ -667,6 +724,19 @@ export type ProofOfGrind = {
         54,
         6
       ]
+    },
+    {
+      "name": "participationLock",
+      "discriminator": [
+        162,
+        14,
+        76,
+        6,
+        17,
+        112,
+        72,
+        239
+      ]
     }
   ],
   "errors": [
@@ -752,6 +822,11 @@ export type ProofOfGrind = {
     },
     {
       "code": 6016,
+      "name": "overlappingChallenge",
+      "msg": "You are already in a challenge on another track at that time"
+    },
+    {
+      "code": 6017,
       "name": "mathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -853,9 +928,6 @@ export type ProofOfGrind = {
     },
     {
       "name": "discordLink",
-      "docs": [
-        "One Discord account can join a challenge only once."
-      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -928,13 +1000,79 @@ export type ProofOfGrind = {
           }
         ]
       }
+    },
+    {
+      "name": "participationLock",
+      "docs": [
+        "One Discord account can join a challenge only once.",
+        "Stops one person from being in challenges on two tracks at the same time.",
+        "Holds the period of their latest challenge; consecutive challenges on one track merge into it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "track",
+            "type": "u8"
+          },
+          {
+            "name": "startTs",
+            "type": "i64"
+          },
+          {
+            "name": "endTs",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
     }
   ],
   "constants": [
     {
+      "name": "biweeklyDays",
+      "type": "u8",
+      "value": "14"
+    },
+    {
+      "name": "biweeklyDaySeconds",
+      "type": "i64",
+      "value": "86400"
+    },
+    {
+      "name": "biweeklyDuration",
+      "type": "i64",
+      "value": "1209600"
+    },
+    {
+      "name": "biweeklyEntryFee",
+      "docs": [
+        "10 USDC (6 decimals) per 1x."
+      ],
+      "type": "u64",
+      "value": "10000000"
+    },
+    {
+      "name": "biweeklyLaunchTs",
+      "docs": [
+        "Placeholder until the first Biweekly date is decided: Monday 2026-10-05 00:00 UTC.",
+        "Registration stays closed until then (the server only co-signs the Weekly track)."
+      ],
+      "type": "i64",
+      "value": "1791158400"
+    },
+    {
       "name": "challengeSeed",
       "type": "bytes",
       "value": "[99, 104, 97, 108, 108, 101, 110, 103, 101]"
+    },
+    {
+      "name": "discordLockSeed",
+      "type": "bytes",
+      "value": "[100, 105, 115, 99, 111, 114, 100, 95, 108, 111, 99, 107]"
     },
     {
       "name": "discordSeed",
@@ -996,6 +1134,14 @@ export type ProofOfGrind = {
       "value": "0"
     },
     {
+      "name": "trackBiweekly",
+      "docs": [
+        "Opens every other week and runs for two weeks."
+      ],
+      "type": "u8",
+      "value": "1"
+    },
+    {
       "name": "trackTest",
       "docs": [
         "Short track for testing the full cycle without waiting a week."
@@ -1031,6 +1177,14 @@ export type ProofOfGrind = {
       ],
       "type": "pubkey",
       "value": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+    },
+    {
+      "name": "walletLockSeed",
+      "docs": [
+        "One participation lock per wallet and one per Discord account, shared by every track."
+      ],
+      "type": "bytes",
+      "value": "[119, 97, 108, 108, 101, 116, 95, 108, 111, 99, 107]"
     },
     {
       "name": "weeklyDays",

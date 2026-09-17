@@ -350,12 +350,6 @@ button.nav-link:focus-visible {
   font-size: clamp(13px, 1.1vw, 16px);
 }
 
-/* Tall enough for the fullest state (registered, with Claim), so connecting a wallet
-   or registering never resizes the cards. */
-.cards > .card {
-  min-height: 23.1em;
-}
-
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -421,7 +415,7 @@ button.nav-link:focus-visible {
 
 .card-actions {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 10px;
 }
 
 /* Next Challenge card in registration mode */
@@ -483,11 +477,17 @@ button.nav-link:focus-visible {
 
 .card .pay-actions {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 8px;
 }
 
 .card .pay-actions > .pay-message {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+}
+
+/* Inside a card the form rows sit as close as the card's own rows. */
+.card .pay-rows {
+  gap: 6px 12px;
+  margin-bottom: 12px;
 }
 
 @media (max-width: 900px) {
@@ -509,7 +509,7 @@ button.nav-link:focus-visible {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   padding: 0;
   list-style: none;
   font-size: 1.3em;
@@ -543,10 +543,10 @@ button.nav-link:focus-visible {
   outline-offset: 2px;
 }
 
-.card .card-rows { padding-left: 0; margin-bottom: 12px; }
+.card .card-rows { padding-left: 0; margin-bottom: 8px; }
 
 .card-note {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   opacity: 0.7;
 }
 
@@ -690,6 +690,88 @@ button.nav-link:focus-visible {
 .steps strong {
   display: block;
   font-weight: 400;
+}
+
+/* Rules: a single line per item, so it reads at full strength. */
+.steps-lines li {
+  margin-bottom: 0.6em;
+}
+
+.steps-lines p {
+  margin: 0 !important;
+  opacity: 1 !important;
+}
+
+.steps-lines .steps-text {
+  opacity: 0.7;
+}
+
+.steps-footer {
+  margin: 0 0 0.6em;
+  font-size: 0.62em;
+}
+
+.steps-footer a,
+.pay-agree a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  transition: color 120ms ease;
+}
+
+.steps-footer a:hover,
+.pay-agree a:hover {
+  color: var(--hover);
+}
+
+/* Rules agreement right above Pay */
+.pay-agree {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  cursor: pointer;
+}
+
+.pay-agree[data-hidden='true'] {
+  visibility: hidden;
+}
+
+.pay-agree input {
+  /* Square outline like the day squares; a solid inner square when checked. */
+  appearance: none;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  margin: 0;
+  border: 1px solid var(--cyan);
+  background: none;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.pay-agree input::before {
+  content: '';
+  width: 0.55em;
+  height: 0.55em;
+  background: var(--cyan);
+  transform: scale(0);
+  transition: transform 120ms ease;
+}
+
+.pay-agree input:checked::before {
+  transform: scale(1);
+}
+
+.pay-agree:hover input:not(:disabled) {
+  border-color: var(--hover);
+}
+
+.pay-agree input:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 2px;
 }
 
 .steps p {

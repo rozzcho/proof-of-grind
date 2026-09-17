@@ -3,7 +3,7 @@ mod common;
 use {
     anchor_lang::prelude::Pubkey,
     common::*,
-    proof_of_grind::constants::{track_config, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
+    proof_of_grind::constants::{track_config, TRACK_BIWEEKLY, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
     solana_keypair::Keypair,
     solana_signer::Signer,
 };
@@ -246,4 +246,29 @@ fn test_track_runs_a_full_cycle_quickly() {
     send(&mut env.svm, claim_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
     // paid 2 USDC, prize pool = 1.9 USDC and they are the only winner
     assert_eq!(token_amount(&env.svm, &ata(&user.pubkey())) - before, 1_900_000);
+}
+
+#[test]
+fn biweekly_track_charges_10_usdc_and_needs_all_14_days() {
+    let config = track_config(TRACK_BIWEEKLY).unwrap();
+    assert_eq!(config.days, 14);
+    let start = config.launch_ts;
+    let mut env = setup(start - 60);
+
+    let user = new_user(&mut env.svm, 50 * USDC);
+    let before_register = token_amount(&env.svm, &ata(&user.pubkey()));
+    let reg = Reg { track: TRACK_BIWEEKLY, challenge_id: 0, discord_id: 11, multiply: 1 };
+    register(&mut env, &user, &reg).unwrap();
+    assert_eq!(before_register - token_amount(&env.svm, &ata(&user.pubkey())), 10 * USDC);
+    let challenge = challenge_pda(TRACK_BIWEEKLY, 0);
+
+    complete_all_days(&mut env, &challenge, &user.pubkey(), TRACK_BIWEEKLY);
+
+    set_time(&mut env.svm, start + config.duration);
+    send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
+
+    let before = token_amount(&env.svm, &ata(&user.pubkey()));
+    send(&mut env.svm, claim_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
+    // paid 10 USDC, prize pool = 9.5 USDC and they are the only winner
+    assert_eq!(token_amount(&env.svm, &ata(&user.pubkey())) - before, 9_500_000);
 }
