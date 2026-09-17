@@ -27,12 +27,12 @@ pub fn handle_record_progress(ctx: Context<RecordProgress>, day_index: u8) -> Re
         .ok_or(ErrorCode::MathOverflow)?;
     let deadline = challenge
         .end_ts
-        .checked_add(config.day_seconds)
+        .checked_add(config.record_window())
         .ok_or(ErrorCode::MathOverflow)?;
 
     let now = Clock::get()?.unix_timestamp;
     require!(now >= day_start, ErrorCode::DayNotStarted);
-    // A short grace period after the challenge ends covers retries.
+    // The record window after the end covers retries and server outages.
     require!(now < deadline, ErrorCode::RecordingClosed);
 
     // Recording the same day twice is harmless.

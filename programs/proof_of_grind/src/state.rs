@@ -31,6 +31,13 @@ pub struct Challenge {
 }
 
 impl Challenge {
+    /// Last moment a winner can claim.
+    pub fn claim_deadline(&self) -> Result<i64> {
+        self.end_ts
+            .checked_add(CLAIM_WINDOW_SECONDS)
+            .ok_or(ErrorCode::MathOverflow.into())
+    }
+
     /// What the winners share: the entry pool minus fees, plus anything rolled over.
     pub fn prize_pool(&self) -> Result<u64> {
         let after_fee = (self.total_deposited as u128)
@@ -61,6 +68,27 @@ pub struct Participant {
 }
 
 /// One Discord account can join a challenge only once.
+/// Warnings a participant received in one challenge (after a jury upheld a report).
+#[account]
+#[derive(InitSpace)]
+pub struct Warning {
+    pub challenge: Pubkey,
+    pub user: Pubkey,
+    pub count: u8,
+    pub bump: u8,
+}
+
+impl Warning {
+    /// Warnings recorded at `info`, the participant's warning address; 0 if none were given yet.
+    pub fn count_at(info: &AccountInfo) -> Result<u8> {
+        if info.owner != &crate::ID || info.data_is_empty() {
+            return Ok(0);
+        }
+        let warning = Warning::try_deserialize(&mut &info.data.borrow()[..])?;
+        Ok(warning.count)
+    }
+}
+
 /// Stops one person from being in challenges on two tracks at the same time.
 /// Holds the period of their latest challenge; consecutive challenges on one track merge into it.
 #[account]

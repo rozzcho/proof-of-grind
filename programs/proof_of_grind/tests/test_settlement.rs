@@ -3,13 +3,14 @@ mod common;
 use {
     anchor_lang::prelude::Pubkey,
     common::*,
-    proof_of_grind::constants::{track_config, TRACK_BIWEEKLY, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
+    proof_of_grind::constants::{track_config, CLAIM_WINDOW_SECONDS, TRACK_BIWEEKLY, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
     solana_keypair::Keypair,
     solana_signer::Signer,
 };
 
 const BEFORE_LAUNCH: i64 = WEEKLY_LAUNCH_TS - DAY;
-const AFTER_END: i64 = WEEKLY_LAUNCH_TS + WEEK_SECONDS + 1;
+/// Weekly #0 has ended and its 2-day record window has closed: results can be tallied.
+const AFTER_END: i64 = WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY;
 
 struct Player {
     keypair: Keypair,
@@ -103,6 +104,9 @@ fn tally_and_claim_need_the_challenge_to_be_over_and_counted() {
     // still running
     set_time(&mut env.svm, WEEKLY_LAUNCH_TS + DAY);
     assert!(send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).is_err());
+    // over, but days can still be recorded for 2 more days
+    set_time(&mut env.svm, AFTER_END - 1);
+    assert!(send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).is_err());
 
     set_time(&mut env.svm, AFTER_END);
     send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
@@ -142,9 +146,14 @@ fn progress_cannot_be_recorded_early_or_late() {
     let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 7);
     assert!(send(&mut env.svm, ix, &[&verifier]).is_err());
 
-    // long after the challenge ended
-    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY);
+    // still inside the 2-day record window after the end
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY - 1);
     let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 0);
+    send(&mut env.svm, ix, &[&verifier]).unwrap();
+
+    // the window has closed
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY);
+    let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 1);
     assert!(send(&mut env.svm, ix, &[&verifier]).is_err());
 }
 
@@ -239,7 +248,7 @@ fn test_track_runs_a_full_cycle_quickly() {
 
     complete_all_days(&mut env, &challenge, &user.pubkey(), TRACK_TEST);
 
-    set_time(&mut env.svm, start + config.duration);
+    set_time(&mut env.svm, start + config.duration + config.record_window());
     send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
 
     let before = token_amount(&env.svm, &ata(&user.pubkey()));
@@ -264,11 +273,83 @@ fn biweekly_track_charges_10_usdc_and_needs_all_14_days() {
 
     complete_all_days(&mut env, &challenge, &user.pubkey(), TRACK_BIWEEKLY);
 
-    set_time(&mut env.svm, start + config.duration);
+    set_time(&mut env.svm, start + config.duration + config.record_window());
     send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
 
     let before = token_amount(&env.svm, &ata(&user.pubkey()));
     send(&mut env.svm, claim_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
     // paid 10 USDC, prize pool = 9.5 USDC and they are the only winner
     assert_eq!(token_amount(&env.svm, &ata(&user.pubkey())) - before, 9_500_000);
+}
+
+#[test]
+fn claims_close_after_4_weeks_and_the_treasury_takes_the_rest() {
+    let mut env = setup(BEFORE_LAUNCH);
+    let (challenge, players) = register_players(&mut env, &[1, 5]);
+    let treasury = load_treasury();
+    env.svm.airdrop(&treasury.pubkey(), 1_000_000_000).unwrap();
+    set_token_account(&mut env.svm, &ata(&treasury.pubkey()), &USDC_MINT, &treasury.pubkey(), 0);
+
+    for player in &players {
+        complete_all_days(&mut env, &challenge, &player.keypair.pubkey(), TRACK_WEEKLY);
+    }
+    set_time(&mut env.svm, AFTER_END);
+    tally_all(&mut env, &challenge, &players);
+
+    // The first winner claims in time; the second never does.
+    let early = players[0].keypair.insecure_clone();
+    send(&mut env.svm, claim_ix(&challenge, &early.pubkey()), &[&early]).unwrap();
+
+    let end_ts = challenge_at(&env.svm, &challenge).end_ts;
+    set_time(&mut env.svm, end_ts + CLAIM_WINDOW_SECONDS - 1);
+    // Still inside the window: fees stay locked while a claim is pending.
+    assert!(send(&mut env.svm, withdraw_fees_ix(&treasury.pubkey(), &challenge), &[&treasury]).is_err());
+
+    set_time(&mut env.svm, end_ts + CLAIM_WINDOW_SECONDS);
+    let late = players[1].keypair.insecure_clone();
+    let err = send(&mut env.svm, claim_ix(&challenge, &late.pubkey()), &[&late]).unwrap_err();
+    assert!(err.contains("Custom(6017)"), "{err}");
+
+    let left_in_vault = token_amount(&env.svm, &ata(&challenge));
+    send(&mut env.svm, withdraw_fees_ix(&treasury.pubkey(), &challenge), &[&treasury]).unwrap();
+    assert_eq!(token_amount(&env.svm, &ata(&treasury.pubkey())), left_in_vault);
+    assert_eq!(token_amount(&env.svm, &ata(&challenge)), 0);
+}
+
+#[test]
+fn three_warnings_knock_a_participant_out() {
+    let mut env = setup(BEFORE_LAUNCH);
+    let (challenge, players) = register_players(&mut env, &[1, 1]);
+    let verifier = env.verifier.insecure_clone();
+    let cheater = players[0].keypair.insecure_clone();
+    let honest = players[1].keypair.insecure_clone();
+
+    for player in &players {
+        complete_all_days(&mut env, &challenge, &player.keypair.pubkey(), TRACK_WEEKLY);
+    }
+    // Only the server can give warnings.
+    let err = send(&mut env.svm, add_warning_ix(&cheater.pubkey(), &challenge, &honest.pubkey()), &[&cheater]);
+    assert!(err.is_err());
+
+    for _ in 0..3 {
+        send(&mut env.svm, add_warning_ix(&verifier.pubkey(), &challenge, &cheater.pubkey()), &[&verifier]).unwrap();
+    }
+    // Two warnings are not enough to be out.
+    for _ in 0..2 {
+        send(&mut env.svm, add_warning_ix(&verifier.pubkey(), &challenge, &honest.pubkey()), &[&verifier]).unwrap();
+    }
+
+    set_time(&mut env.svm, AFTER_END);
+    // No more warnings once results are open.
+    assert!(send(&mut env.svm, add_warning_ix(&verifier.pubkey(), &challenge, &honest.pubkey()), &[&verifier]).is_err());
+    tally_all(&mut env, &challenge, &players);
+
+    let state = challenge_state(&env.svm, 0);
+    assert_eq!((state.winner_count, state.winner_shares), (1, 1));
+    assert!(send(&mut env.svm, claim_ix(&challenge, &cheater.pubkey()), &[&cheater]).is_err());
+
+    // The honest winner takes the whole prize pool: 14 USDC entry pool -> 13.3 USDC.
+    let before = token_amount(&env.svm, &ata(&honest.pubkey()));
+    send(&mut env.svm, claim_ix(&challenge, &honest.pubkey()), &[&honest]).unwrap();
+    assert_eq!(token_amount(&env.svm, &ata(&honest.pubkey())) - before, 13_300_000);
 }

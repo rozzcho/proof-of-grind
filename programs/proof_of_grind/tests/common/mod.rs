@@ -8,7 +8,7 @@ use {
     litesvm::LiteSVM,
     proof_of_grind::{
         constants::{
-            track_config, CHALLENGE_SEED, DISCORD_LOCK_SEED, DISCORD_SEED, PARTICIPANT_SEED, WALLET_LOCK_SEED, TRACK_WEEKLY, TREASURY, USDC_MINT, VERIFIER,
+            track_config, WARNING_SEED, CHALLENGE_SEED, DISCORD_LOCK_SEED, DISCORD_SEED, PARTICIPANT_SEED, WALLET_LOCK_SEED, TRACK_WEEKLY, TREASURY, USDC_MINT, VERIFIER,
             WEEKLY_ENTRY_FEE, WEEKLY_LAUNCH_TS, WEEK_SECONDS,
         },
         state::{Challenge, DiscordLink, Participant},
@@ -231,6 +231,25 @@ pub fn complete_all_days(env: &mut Env, challenge: &Pubkey, user: &Pubkey, track
     set_time(&mut env.svm, state.end_ts);
 }
 
+pub fn warning_pda(challenge: &Pubkey, user: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[WARNING_SEED, challenge.as_ref(), user.as_ref()], &proof_of_grind::id()).0
+}
+
+pub fn add_warning_ix(oracle: &Pubkey, challenge: &Pubkey, user: &Pubkey) -> Instruction {
+    Instruction::new_with_bytes(
+        proof_of_grind::id(),
+        &proof_of_grind::instruction::AddWarning {}.data(),
+        proof_of_grind::accounts::AddWarning {
+            oracle: *oracle,
+            challenge: *challenge,
+            participant: participant_pda(challenge, user),
+            warning: warning_pda(challenge, user),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+    )
+}
+
 pub fn tally_ix(challenge: &Pubkey, user: &Pubkey) -> Instruction {
     Instruction::new_with_bytes(
         proof_of_grind::id(),
@@ -238,6 +257,7 @@ pub fn tally_ix(challenge: &Pubkey, user: &Pubkey) -> Instruction {
         proof_of_grind::accounts::Tally {
             participant: participant_pda(challenge, user),
             challenge: *challenge,
+            warning: warning_pda(challenge, user),
         }
         .to_account_metas(None),
     )
@@ -251,6 +271,7 @@ pub fn claim_ix(challenge: &Pubkey, user: &Pubkey) -> Instruction {
             user: *user,
             challenge: *challenge,
             participant: participant_pda(challenge, user),
+            warning: warning_pda(challenge, user),
             mint: USDC_MINT,
             user_token_account: ata(user),
             vault: ata(challenge),

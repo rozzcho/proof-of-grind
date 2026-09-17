@@ -20,6 +20,13 @@ export function participantPda(challenge: PublicKey, user: PublicKey) {
   )[0]
 }
 
+export function warningPda(challenge: PublicKey, user: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('warning'), challenge.toBuffer(), user.toBuffer()],
+    PROGRAM_ID,
+  )[0]
+}
+
 export function usdcAta(owner: PublicKey) {
   return getAssociatedTokenAddressSync(USDC_MINT, owner, true)
 }

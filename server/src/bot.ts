@@ -14,6 +14,7 @@ import {
   participantsOf,
   recordProgress,
   registeredDiscordIds,
+  resultsOpenMs,
   rollover,
   runningChallengeId,
   tally,
@@ -154,6 +155,8 @@ async function settleFinishedChallenge(track: number) {
   const running = runningChallengeId(track)
   const finished = running === null ? null : running - 1
   if (finished === null || finished < 0) return
+  // Days can still be recorded until the record window closes; counting before that could miss them.
+  if (Date.now() < resultsOpenMs(track, finished)) return
   const state = await challengeState(track, finished)
   if (!state) return
 

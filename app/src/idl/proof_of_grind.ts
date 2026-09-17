@@ -14,6 +14,73 @@ export type ProofOfGrind = {
   },
   "instructions": [
     {
+      "name": "addWarning",
+      "docs": [
+        "Gives a participant a warning; 3 warnings and they are out."
+      ],
+      "discriminator": [
+        144,
+        1,
+        147,
+        218,
+        178,
+        131,
+        132,
+        135
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "writable": true,
+          "signer": true,
+          "address": "HfAMz1kUe8xYxoC4BamRuC8sGB2Zh7gKTkgzf26c9xmP"
+        },
+        {
+          "name": "challenge",
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant"
+        },
+        {
+          "name": "warning",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  114,
+                  110,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "participant.user",
+                "account": "participant"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claim",
       "docs": [
         "A winner withdraws their share of the prize pool."
@@ -47,6 +114,33 @@ export type ProofOfGrind = {
         {
           "name": "participant",
           "writable": true
+        },
+        {
+          "name": "warning",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  114,
+                  110,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
         },
         {
           "name": "mint",
@@ -581,6 +675,37 @@ export type ProofOfGrind = {
           "relations": [
             "participant"
           ]
+        },
+        {
+          "name": "warning",
+          "docs": [
+            "sure a caller cannot pass another account to hide warnings."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  119,
+                  97,
+                  114,
+                  110,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "challenge"
+              },
+              {
+                "kind": "account",
+                "path": "participant.user",
+                "account": "participant"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -737,6 +862,19 @@ export type ProofOfGrind = {
         72,
         239
       ]
+    },
+    {
+      "name": "warning",
+      "discriminator": [
+        199,
+        28,
+        213,
+        239,
+        55,
+        10,
+        78,
+        14
+      ]
     }
   ],
   "errors": [
@@ -778,7 +916,7 @@ export type ProofOfGrind = {
     {
       "code": 6007,
       "name": "challengeNotOver",
-      "msg": "The challenge is still running"
+      "msg": "Results are not open yet: the challenge or its record window is still running"
     },
     {
       "code": 6008,
@@ -827,6 +965,16 @@ export type ProofOfGrind = {
     },
     {
       "code": 6017,
+      "name": "claimWindowClosed",
+      "msg": "The claim window for this challenge has closed"
+    },
+    {
+      "code": 6018,
+      "name": "warningsClosed",
+      "msg": "Warnings can no longer be given for this challenge"
+    },
+    {
+      "code": 6019,
       "name": "mathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -1004,7 +1152,6 @@ export type ProofOfGrind = {
     {
       "name": "participationLock",
       "docs": [
-        "One Discord account can join a challenge only once.",
         "Stops one person from being in challenges on two tracks at the same time.",
         "Holds the period of their latest challenge; consecutive challenges on one track merge into it."
       ],
@@ -1022,6 +1169,34 @@ export type ProofOfGrind = {
           {
             "name": "endTs",
             "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "warning",
+      "docs": [
+        "One Discord account can join a challenge only once.",
+        "Warnings a participant received in one challenge (after a jury upheld a report)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "challenge",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "count",
+            "type": "u8"
           },
           {
             "name": "bump",
@@ -1070,6 +1245,14 @@ export type ProofOfGrind = {
       "value": "[99, 104, 97, 108, 108, 101, 110, 103, 101]"
     },
     {
+      "name": "claimWindowSeconds",
+      "docs": [
+        "Winners have 4 weeks after a challenge ends to claim; what is left then goes to the treasury."
+      ],
+      "type": "i64",
+      "value": "2419200"
+    },
+    {
       "name": "discordLockSeed",
       "type": "bytes",
       "value": "[100, 105, 115, 99, 111, 114, 100, 95, 108, 111, 99, 107]"
@@ -1093,6 +1276,14 @@ export type ProofOfGrind = {
       "value": "10"
     },
     {
+      "name": "maxWarnings",
+      "docs": [
+        "A participant with this many warnings in a challenge is out."
+      ],
+      "type": "u8",
+      "value": "3"
+    },
+    {
       "name": "participantSeed",
       "type": "bytes",
       "value": "[112, 97, 114, 116, 105, 99, 105, 112, 97, 110, 116]"
@@ -1104,6 +1295,15 @@ export type ProofOfGrind = {
       ],
       "type": "u64",
       "value": "10000"
+    },
+    {
+      "name": "recordWindowDays",
+      "docs": [
+        "Passed days can still be recorded for this many challenge days after the end (e.g. after a",
+        "server outage). Results are tallied only once this window closes."
+      ],
+      "type": "i64",
+      "value": "2"
     },
     {
       "name": "testDays",
@@ -1185,6 +1385,11 @@ export type ProofOfGrind = {
       ],
       "type": "bytes",
       "value": "[119, 97, 108, 108, 101, 116, 95, 108, 111, 99, 107]"
+    },
+    {
+      "name": "warningSeed",
+      "type": "bytes",
+      "value": "[119, 97, 114, 110, 105, 110, 103]"
     },
     {
       "name": "weeklyDays",

@@ -16,7 +16,7 @@ pub enum ErrorCode {
     DayNotStarted,
     #[msg("Progress can no longer be recorded for this challenge")]
     RecordingClosed,
-    #[msg("The challenge is still running")]
+    #[msg("Results are not open yet: the challenge or its record window is still running")]
     ChallengeNotOver,
     #[msg("This participant was already counted")]
     AlreadyTallied,
@@ -36,6 +36,10 @@ pub enum ErrorCode {
     InvalidRolloverTarget,
     #[msg("You are already in a challenge on another track at that time")]
     OverlappingChallenge,
+    #[msg("The claim window for this challenge has closed")]
+    ClaimWindowClosed,
+    #[msg("Warnings can no longer be given for this challenge")]
+    WarningsClosed,
     #[msg("Arithmetic overflow")]
     MathOverflow,
 }

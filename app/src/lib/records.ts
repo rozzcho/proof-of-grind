@@ -3,9 +3,9 @@ import { BorshAccountsCoder, type Idl } from '@anchor-lang/core'
 import { useConnection } from '@solana/wallet-adapter-react'
 import type { Connection, PublicKey } from '@solana/web3.js'
 import idl from '../idl/proof_of_grind.json'
-import { USDC_DECIMALS } from '../config'
+import { CLAIM_WINDOW_MS, MAX_WARNINGS, USDC_DECIMALS } from '../config'
 import { PRIZE_POOL_SHARE } from './challenge'
-import { PROGRAM_ID } from './program'
+import { PROGRAM_ID, warningPda } from './program'
 
 const coder = new BorshAccountsCoder(idl as unknown as Idl)
 
@@ -16,7 +16,7 @@ const PAYOUT_UNIT = 10_000 // rewards are rounded down to 0.01 USDC
 
 const TRACK_NAMES: Record<number, string> = { 0: 'Weekly', 1: 'Biweekly', 2: 'Test' }
 
-export type RecordResult = 'upcoming' | 'running' | 'settling' | 'won' | 'claimed' | 'missed'
+export type RecordResult = 'upcoming' | 'running' | 'settling' | 'won' | 'claimed' | 'expired' | 'missed' | 'out'
 
 export type ChallengeRecord = {
   key: string
@@ -25,6 +25,8 @@ export type ChallengeRecord = {
   challengeId: number
   /** Unix seconds. */
   startTs: number
+  /** Last moment the reward can be claimed (ms). */
+  claimDeadlineMs: number
   multiply: number
   paidUsdc: number
   daysPassed: number
@@ -58,7 +60,10 @@ export async function loadRecords(connection: Connection, wallet: PublicKey): Pr
       claimed: boolean
     },
   }))
-  const challenges = await connection.getMultipleAccountsInfo(decoded.map(({ p }) => p.challenge))
+  const [challenges, warningInfos] = await Promise.all([
+    connection.getMultipleAccountsInfo(decoded.map(({ p }) => p.challenge)),
+    connection.getMultipleAccountsInfo(decoded.map(({ p }) => warningPda(p.challenge, wallet))),
+  ])
   const now = Date.now() / 1000
 
   const list = decoded.flatMap(({ key, p }, i): ChallengeRecord[] => {
@@ -76,14 +81,19 @@ export async function loadRecords(connection: Connection, wallet: PublicKey): Pr
     }
     const days = dayCount(c.track)
     const fullMask = (1 << days) - 1
-    const passedAll = (p.days_completed & fullMask) === fullMask
+    const warningInfo = warningInfos[i]
+    const warnedOut =
+      (warningInfo ? (coder.decode('Warning', warningInfo.data) as { count: number }).count : 0) >= MAX_WARNINGS
+    const passedAll = (p.days_completed & fullMask) === fullMask && !warnedOut
     const winnerShares = num(c.winner_shares)
     const prizePool = num(c.total_deposited) * PRIZE_POOL_SHARE + num(c.carry_over)
     const reward =
       c.finalized && passedAll && winnerShares > 0
         ? (Math.floor((prizePool * p.multiply) / winnerShares / PAYOUT_UNIT) * PAYOUT_UNIT) / 10 ** USDC_DECIMALS
         : null
-    const result: RecordResult = !c.finalized
+    const result: RecordResult = warnedOut
+      ? 'out'
+      : !c.finalized
       ? now < num(c.start_ts)
         ? 'upcoming'
         : now < num(c.end_ts)
@@ -93,7 +103,9 @@ export async function loadRecords(connection: Connection, wallet: PublicKey): Pr
         ? 'missed'
         : p.claimed
           ? 'claimed'
-          : 'won'
+          : now * 1000 >= num(c.end_ts) * 1000 + CLAIM_WINDOW_MS
+            ? 'expired'
+            : 'won'
     const challengeId = num(c.challenge_id)
     return [
       {
@@ -102,6 +114,7 @@ export async function loadRecords(connection: Connection, wallet: PublicKey): Pr
         track: c.track,
         challengeId,
         startTs: num(c.start_ts),
+        claimDeadlineMs: num(c.end_ts) * 1000 + CLAIM_WINDOW_MS,
         multiply: p.multiply,
         paidUsdc: num(p.amount_paid) / 10 ** USDC_DECIMALS,
         daysPassed: bitCount(p.days_completed & fullMask),
@@ -115,7 +128,7 @@ export async function loadRecords(connection: Connection, wallet: PublicKey): Pr
 }
 
 /** Loads the records when `enabled` (the Records view is open). */
-export function useRecords(wallet: PublicKey | null, enabled: boolean) {
+export function useRecords(wallet: PublicKey | null, enabled: boolean, refresh = 0) {
   const { connection } = useConnection()
   const [records, setRecords] = useState<ChallengeRecord[] | null>(null)
 
@@ -129,7 +142,7 @@ export function useRecords(wallet: PublicKey | null, enabled: boolean) {
     return () => {
       cancelled = true
     }
-  }, [connection, wallet, enabled])
+  }, [connection, wallet, enabled, refresh])
 
   return records
 }

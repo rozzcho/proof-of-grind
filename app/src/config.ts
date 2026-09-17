@@ -20,6 +20,12 @@ function idlConstant(name: string): string {
 export const USDC_MINT = new PublicKey(idlConstant('USDC_MINT'))
 export const USDC_DECIMALS = 6
 
+/** A participant with this many warnings in a challenge is out. */
+export const MAX_WARNINGS = Number(idlConstant('MAX_WARNINGS'))
+
+/** Winners must claim within this long after a challenge ends. */
+export const CLAIM_WINDOW_MS = Number(idlConstant('CLAIM_WINDOW_SECONDS')) * 1000
+
 // Challenge terms come from the program so the UI always matches what gets charged.
 const TRACKS = {
   [Number(idlConstant('TRACK_WEEKLY'))]: {

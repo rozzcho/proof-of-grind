@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAnchorWallet, useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { AnchorProvider, BorshAccountsCoder, Program, type Idl } from '@anchor-lang/core'
-import { Transaction } from '@solana/web3.js'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { BorshAccountsCoder, type Idl } from '@anchor-lang/core'
 import idl from '../idl/proof_of_grind.json'
-import { CHALLENGE, USDC_DECIMALS, USDC_MINT, trackConfig, type TrackConfig } from '../config'
+import { CHALLENGE, CLAIM_WINDOW_MS, MAX_WARNINGS, USDC_DECIMALS, trackConfig, type TrackConfig } from '../config'
 import { getProgress, type Progress } from '../lib/api'
 import { PRIZE_POOL_SHARE, useChallengeState } from '../lib/challenge'
-import { challengePda, participantPda, usdcAta } from '../lib/program'
+import { challengePda, participantPda, warningPda } from '../lib/program'
 import type { Challenge } from '../lib/schedule'
+import { formatDateTime, useTimeZoneMode } from '../lib/timeZone'
 import { ChallengeDates } from './ChallengeCard'
 import { Records, type RecordOrder } from './Records'
-import { signAndConfirm } from '../lib/send'
+import { useClaimReward } from '../lib/claim'
 
 type Claim = { kind: 'idle' } | { kind: 'sending' } | { kind: 'done' } | { kind: 'error'; message: string }
 
@@ -23,6 +22,9 @@ type Stake = {
   multiply: number
   paidUsdc: number
   passedEveryDay: boolean
+  warnings: number
+  /** Passed every day but got too many warnings. */
+  warnedOut: boolean
   claimed: boolean
   finalized: boolean
   /** What this participant gets if they won; null until the challenge is settled. */
@@ -138,9 +140,10 @@ export function MyChallenge(props: Props) {
 }
 
 function MyChallengeBody({ running, upcoming }: Props) {
+  const [zone] = useTimeZoneMode()
+  const claimReward = useClaimReward()
   const { connection } = useConnection()
-  const { publicKey, signTransaction } = useWallet()
-  const anchorWallet = useAnchorWallet()
+  const { publicKey } = useWallet()
   const [progress, setProgress] = useState<Progress | null>(null)
   const [stake, setStake] = useState<Stake | null>(null)
   const [claim, setClaim] = useState<Claim>({ kind: 'idle' })
@@ -158,9 +161,10 @@ function MyChallengeBody({ running, upcoming }: Props) {
     if (!data || !publicKey) return
 
     const challenge = challengePda(data.track, data.challengeId)
-    const [challengeInfo, participantInfo] = await Promise.all([
-      connection.getAccountInfo(challenge),
-      connection.getAccountInfo(participantPda(challenge, publicKey)),
+    const [challengeInfo, participantInfo, warningInfo] = await connection.getMultipleAccountsInfo([
+      challenge,
+      participantPda(challenge, publicKey),
+      warningPda(challenge, publicKey),
     ])
     if (!challengeInfo || !participantInfo) {
       setStake(null)
@@ -181,11 +185,13 @@ function MyChallengeBody({ running, upcoming }: Props) {
       }
       const fullMask = (1 << data.days.length) - 1
       const passedEveryDay = p.days_completed === fullMask
+      const warnings = warningInfo ? (coder.decode('Warning', warningInfo.data) as { count: number }).count : 0
+      const warnedOut = warnings >= MAX_WARNINGS
       const winnerShares = Number(c.winner_shares.toString())
       const prizePool =
         Number(c.total_deposited.toString()) * PRIZE_POOL_SHARE + Number(c.carry_over.toString())
       const payout =
-        c.finalized && passedEveryDay && winnerShares > 0
+        c.finalized && passedEveryDay && !warnedOut && winnerShares > 0
           ? Math.floor((prizePool * p.multiply) / winnerShares / PAYOUT_UNIT) * PAYOUT_UNIT
           : null
 
@@ -193,6 +199,8 @@ function MyChallengeBody({ running, upcoming }: Props) {
         multiply: p.multiply,
         paidUsdc: Number(p.amount_paid.toString()) / 10 ** USDC_DECIMALS,
         passedEveryDay,
+        warnings,
+        warnedOut,
         claimed: p.claimed,
         finalized: c.finalized,
         payoutUsdc: payout === null ? null : payout / 10 ** USDC_DECIMALS,
@@ -244,10 +252,15 @@ function MyChallengeBody({ running, upcoming }: Props) {
     )
   }
 
-  const claimed = Boolean(stake?.claimed) || claim.kind === 'done'
-  const claimable = Boolean(stake?.finalized && stake.passedEveryDay && !claimed)
   const track = trackConfig(progress.track)
   const startMs = track.launchMs + progress.challengeId * track.durationMs
+  const claimDeadlineMs = startMs + track.durationMs + CLAIM_WINDOW_MS
+  const claimWindowClosed = now >= claimDeadlineMs
+  const claimed = Boolean(stake?.claimed) || claim.kind === 'done'
+  const claimable = Boolean(
+    stake?.finalized && stake.passedEveryDay && !stake.warnedOut && !claimed && !claimWindowClosed,
+  )
+  const warningsNote = stake?.warnings ? `Warnings ${stake.warnings}/${MAX_WARNINGS} · ` : ''
   const challengeShown: Challenge = {
     id: progress.challengeId,
     track: progress.track,
@@ -257,32 +270,9 @@ function MyChallengeBody({ running, upcoming }: Props) {
   }
 
   const sendClaim = async () => {
-    if (!signTransaction || !anchorWallet) return
     setClaim({ kind: 'sending' })
     try {
-      const challenge = challengePda(progress.track, progress.challengeId)
-      const provider = new AnchorProvider(connection, anchorWallet, { commitment: 'confirmed' })
-      const program = new Program(idl as unknown as Idl, provider)
-      const ix = await program.methods
-        .claim()
-        .accountsPartial({
-          user: publicKey,
-          challenge,
-          participant: participantPda(challenge, publicKey),
-          mint: USDC_MINT,
-          userTokenAccount: usdcAta(publicKey),
-          vault: usdcAta(challenge),
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction()
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash()
-      const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight }).add(ix)
-      await signAndConfirm(
-        connection,
-        signTransaction,
-        tx.serialize({ requireAllSignatures: false }),
-        lastValidBlockHeight,
-      )
+      await claimReward(progress.track, progress.challengeId)
       setClaim({ kind: 'done' })
       load()
     } catch (err) {
@@ -321,10 +311,13 @@ function MyChallengeBody({ running, upcoming }: Props) {
         )}
       </dl>
 
-      {!claimed && (
+      {/* Once a reward shows, its row, the deadline and the Claim button say it all. */}
+      {!claimed && (stake?.payoutUsdc ?? null) === null && (
       <p className="card-note">
-        {progress.counting
-          ? 'Camera on — counting now.'
+        {stake?.warnedOut
+          ? `Out after ${MAX_WARNINGS} warnings.`
+          : progress.counting
+          ? `${warningsNote}Camera on — counting now.`
           : progress.over
               ? stake?.passedEveryDay
                 ? stake.finalized
@@ -332,13 +325,17 @@ function MyChallengeBody({ running, upcoming }: Props) {
                   : 'You made it. Tallying…'
                 : 'Missed a day. No reward.'
               : progress.running
-                ? 'Camera on in Discord to count.'
+                ? `${warningsNote}Camera on in Discord to count.`
                 : 'Starts soon. Get ready!'}
       </p>
       )}
 
       {claim.kind === 'error' && <p className="pay-message pay-error">{claim.message}</p>}
       <div className="card-actions">
+        {/* Kept in place (only hidden) once claimed, so the card does not change height. */}
+        <p className="claim-deadline" data-hidden={claimed}>
+          {claimWindowClosed ? '* Claim window closed' : `* Claim by ${formatDateTime(claimDeadlineMs, zone)}`}
+        </p>
         <button
           type="button"
           className="pay-button"

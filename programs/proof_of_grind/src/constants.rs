@@ -29,11 +29,27 @@ pub const WALLET_LOCK_SEED: &[u8] = b"wallet_lock";
 pub const DISCORD_LOCK_SEED: &[u8] = b"discord_lock";
 
 #[constant]
+pub const WARNING_SEED: &[u8] = b"warning";
+
+/// A participant with this many warnings in a challenge is out.
+#[constant]
+pub const MAX_WARNINGS: u8 = 3;
+
+#[constant]
 pub const MAX_MULTIPLY: u8 = 10;
 
 /// Platform + exchange fee, in basis points of the entry pool.
 #[constant]
 pub const FEE_BPS: u64 = 500;
+
+/// Passed days can still be recorded for this many challenge days after the end (e.g. after a
+/// server outage). Results are tallied only once this window closes.
+#[constant]
+pub const RECORD_WINDOW_DAYS: i64 = 2;
+
+/// Winners have 4 weeks after a challenge ends to claim; what is left then goes to the treasury.
+#[constant]
+pub const CLAIM_WINDOW_SECONDS: i64 = 28 * 24 * 60 * 60;
 
 /// Rewards are rounded down to 0.01 USDC.
 #[constant]
@@ -113,6 +129,11 @@ pub struct TrackConfig {
 }
 
 impl TrackConfig {
+    /// How long after the end passed days can still be recorded: 2 days (2 test "days" on the test track).
+    pub const fn record_window(&self) -> i64 {
+        RECORD_WINDOW_DAYS * self.day_seconds
+    }
+
     /// Bitmask with one bit per day: every bit set means the participant passed the challenge.
     pub const fn full_mask(&self) -> u16 {
         (1u16 << self.days) - 1

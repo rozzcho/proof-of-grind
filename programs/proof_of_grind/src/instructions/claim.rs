@@ -4,7 +4,7 @@ use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TokenInt
 use crate::{
     constants::*,
     error::ErrorCode,
-    state::{Challenge, Participant},
+    state::{Challenge, Participant, Warning},
 };
 
 /// A winner withdraws their share of the prize pool.
@@ -16,6 +16,9 @@ pub struct Claim<'info> {
     pub challenge: Account<'info, Challenge>,
     #[account(mut, has_one = challenge, has_one = user)]
     pub participant: Account<'info, Participant>,
+    /// CHECK: the participant's warning address, which may not exist; fixed by its seeds.
+    #[account(seeds = [WARNING_SEED, challenge.key().as_ref(), user.key().as_ref()], bump)]
+    pub warning: UncheckedAccount<'info>,
     #[account(mint::token_program = token_program)]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
@@ -43,7 +46,12 @@ pub fn handle_claim(ctx: Context<Claim>) -> Result<()> {
     require!(challenge.finalized, ErrorCode::NotFinalized);
     require!(!participant.claimed, ErrorCode::AlreadyClaimed);
     require!(
-        participant.days_completed == config.full_mask(),
+        Clock::get()?.unix_timestamp < challenge.claim_deadline()?,
+        ErrorCode::ClaimWindowClosed
+    );
+    require!(
+        participant.days_completed == config.full_mask()
+            && Warning::count_at(&ctx.accounts.warning)? < MAX_WARNINGS,
         ErrorCode::NotAWinner
     );
 

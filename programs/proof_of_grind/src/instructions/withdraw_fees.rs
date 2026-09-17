@@ -36,8 +36,10 @@ pub fn handle_withdraw_fees(ctx: Context<WithdrawFees>) -> Result<()> {
         // The prize pool has to reach the next challenge first.
         require!(challenge.rolled_over, ErrorCode::NothingToRollOver);
     } else {
+        // Everything left once every winner has claimed, or once the claim window closes.
+        let window_closed = Clock::get()?.unix_timestamp >= challenge.claim_deadline()?;
         require!(
-            challenge.claimed_count == challenge.winner_count,
+            challenge.claimed_count == challenge.winner_count || window_closed,
             ErrorCode::ClaimsPending
         );
     }

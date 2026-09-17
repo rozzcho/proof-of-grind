@@ -89,6 +89,14 @@ export function challengeEndMs(track: number, challengeId: number) {
   return challengeStartMs(track, challengeId) + trackConfigOf(track).durationMs
 }
 
+/** Passed days can be recorded for this many days after a challenge ends; tallying waits for it. */
+const RECORD_WINDOW_DAYS = Number(idlConstant('RECORD_WINDOW_DAYS'))
+
+/** When a finished challenge can be tallied: after its record window closes. */
+export function resultsOpenMs(track: number, challengeId: number) {
+  return challengeEndMs(track, challengeId) + RECORD_WINDOW_DAYS * trackConfigOf(track).dayMs
+}
+
 /** Challenge taking registrations: the next one to start. */
 export function openChallengeId(track: number, now = Date.now()) {
   const { launchMs, durationMs } = trackConfigOf(track)
@@ -134,6 +142,13 @@ export function participantPda(challenge: PublicKey, user: PublicKey) {
 export function discordLinkPda(challenge: PublicKey, discordId: string) {
   return PublicKey.findProgramAddressSync(
     [Buffer.from('discord'), challenge.toBuffer(), u64le(discordId)],
+    program.programId,
+  )[0]
+}
+
+export function warningPda(challenge: PublicKey, user: PublicKey) {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('warning'), challenge.toBuffer(), user.toBuffer()],
     program.programId,
   )[0]
 }
@@ -324,9 +339,30 @@ export async function tally(track: number, challengeId: number, user: PublicKey)
   const challenge = challengePda(track, challengeId)
   const ix = await program.methods
     .tally()
-    .accountsPartial({ challenge, participant: participantPda(challenge, user) })
+    .accountsPartial({ challenge, participant: participantPda(challenge, user), warning: warningPda(challenge, user) })
     .instruction()
   return sendAsOracle(ix)
+}
+
+/** Gives a participant one warning (a jury upheld a report). 3 warnings and they are out. */
+export async function addWarning(track: number, challengeId: number, user: PublicKey) {
+  const challenge = challengePda(track, challengeId)
+  const ix = await program.methods
+    .addWarning()
+    .accountsPartial({
+      oracle: verifier.publicKey,
+      challenge,
+      participant: participantPda(challenge, user),
+      warning: warningPda(challenge, user),
+    })
+    .instruction()
+  return sendAsOracle(ix)
+}
+
+/** Warnings a participant has in a challenge. */
+export async function warningCount(track: number, challengeId: number, user: PublicKey) {
+  const warning = await program.account.warning.fetchNullable(warningPda(challengePda(track, challengeId), user))
+  return warning?.count ?? 0
 }
 
 export async function rollover(track: number, fromId: number, toId: number) {

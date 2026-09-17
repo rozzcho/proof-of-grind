@@ -724,6 +724,16 @@ button.nav-link:focus-visible {
   color: var(--hover);
 }
 
+/* Claim deadline right above Claim reward, like the rules agreement above Pay */
+.claim-deadline {
+  margin: 0 0 8px;
+  opacity: 0.7;
+}
+
+.claim-deadline[data-hidden='true'] {
+  visibility: hidden;
+}
+
 /* Rules agreement right above Pay */
 .pay-agree {
   display: flex;
@@ -826,7 +836,12 @@ button.nav-link:focus-visible {
   transition: color 120ms ease, opacity 120ms ease;
 }
 
-.zone-toggle:hover {
+.zone-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zone-toggle:hover:not(:disabled) {
   color: var(--hover);
   opacity: 1;
 }
@@ -878,6 +893,20 @@ button.nav-link:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+.record-claim {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.record-claim span {
+  opacity: 0.7;
+}
+
+.record[data-result='out'] .record-title span:last-child,
+.record[data-result='expired'] .record-title span:last-child,
 .record[data-result='missed'] .record-title span:last-child {
   opacity: 0.6;
 }

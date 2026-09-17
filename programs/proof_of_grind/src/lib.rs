@@ -31,6 +31,11 @@ pub mod proof_of_grind {
         crate::instructions::record_progress::handle_record_progress(ctx, day_index)
     }
 
+    /// Gives a participant a warning; 3 warnings and they are out.
+    pub fn add_warning(ctx: Context<AddWarning>) -> Result<()> {
+        crate::instructions::add_warning::handle_add_warning(ctx)
+    }
+
     /// Counts one participant after the challenge ends; the last one finalizes it.
     pub fn tally(ctx: Context<Tally>) -> Result<()> {
         crate::instructions::tally::handle_tally(ctx)
