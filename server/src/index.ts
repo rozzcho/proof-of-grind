@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server'
 import { PublicKey } from '@solana/web3.js'
 import { Hono } from 'hono'
 import { auth, getSession } from './auth.ts'
-import { addParticipant, grantRole, startBot, tracker } from './bot.ts'
+import { addParticipant, botStatus, dayWindow, grantRole, startBot, tracker } from './bot.ts'
 import { botConfigured, config, discordFor, oauthConfigured } from './config.ts'
 import {
   ACTIVE_TRACKS,
@@ -47,6 +47,7 @@ app.get('/api/health', async (c) => {
   ])
   return c.json({
     ok: true,
+    bot: botHealth(),
     discordLogin: oauthConfigured,
     discordBot: botConfigured,
     voiceChannel: Boolean(config.discord.voiceChannelId),
@@ -58,6 +59,25 @@ app.get('/api/health', async (c) => {
     faucetAddress,
     faucetSol,
   })
+})
+
+/** Bot status for uptime monitors: stale when disconnected or no longer saving time. */
+function botHealth() {
+  const { ready, lastFlushAt, disconnectedAt } = botStatus()
+  const flushAgeMs = lastFlushAt === null ? null : Date.now() - lastFlushAt
+  const healthy = !botConfigured || (ready && flushAgeMs !== null && flushAgeMs < 3 * config.flushIntervalMs)
+  return {
+    healthy,
+    ready,
+    lastFlushSecondsAgo: flushAgeMs === null ? null : Math.round(flushAgeMs / 1000),
+    disconnectedSince: disconnectedAt === null ? null : new Date(disconnectedAt).toISOString(),
+  }
+}
+
+// Point an uptime monitor here: 503 means the bot is not counting time right now.
+app.get('/api/health/bot', (c) => {
+  const health = botHealth()
+  return c.json(health, health.healthy ? 200 : 503)
 })
 
 app.get('/api/me', async (c) => {
@@ -173,7 +193,7 @@ app.get('/api/progress', async (c) => {
     goalSeconds: config.dailyGoalSeconds,
     counting: tracker.isActive(session.discordId),
     currentDay: dayIndexAt(track, challengeId, now),
-    days: tracker.challenge(session.discordId, track, challengeId, trackConfigOf(track).days),
+    days: tracker.challenge(session.discordId, track, challengeId, trackConfigOf(track).days, dayWindow),
   })
 })
 
@@ -188,6 +208,7 @@ startBot().catch((err) => console.error('[bot] failed to start', err))
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     tracker.stopAll()
+    tracker.heartbeat()
     process.exit(0)
   })
 }

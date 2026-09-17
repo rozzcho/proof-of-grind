@@ -5,6 +5,7 @@ import { ChannelType, Client, Events, GatewayIntentBits, type VoiceState } from 
 import { botConfigured, config, discordFor } from './config.ts'
 import {
   ACTIVE_TRACKS,
+  challengeStartMs,
   challengeState,
   dayEndMs,
   dayIndexAt,
@@ -56,9 +57,48 @@ function currentChallenge(discordId: string) {
 function slotOf(discordId: string, atMs: number): Slot | null {
   for (const { track, challengeId } of registrations.get(discordId) ?? []) {
     const dayIndex = dayIndexAt(track, challengeId, atMs)
-    if (dayIndex !== null) return { track, challengeId, dayIndex, endMs: dayEndMs(track, challengeId, dayIndex) }
+    if (dayIndex !== null) {
+      const endMs = dayEndMs(track, challengeId, dayIndex)
+      return { track, challengeId, dayIndex, endMs, startMs: endMs - trackConfigOf(track).dayMs }
+    }
   }
   return null
+}
+
+/** Start and end of a challenge day, for lowering its goal by any outage. */
+export function dayWindow(track: number, challengeId: number, dayIndex: number): [number, number] | null {
+  if (!TRACKS[track] || dayIndex < 0 || dayIndex >= TRACKS[track].days) return null
+  const startMs = challengeStartMs(track, challengeId) + dayIndex * TRACKS[track].dayMs
+  return [startMs, startMs + TRACKS[track].dayMs]
+}
+
+/** Downtime shorter than this is ordinary restart noise and is not treated as an outage. */
+const MIN_OUTAGE_MS = 2 * config.flushIntervalMs
+
+let lastFlushAt: number | null = null
+let disconnectedAt: number | null = null
+
+/** For the health check: is the bot connected, and is it still saving time? */
+export function botStatus() {
+  return { ready: Boolean(client?.isReady()), lastFlushAt, disconnectedAt }
+}
+
+function flush() {
+  const now = Date.now()
+  tracker.flush(now)
+  tracker.heartbeat(now)
+  lastFlushAt = now
+}
+
+/** Records downtime; days whose time now meets their lowered goal get recorded on chain. */
+function recordOutage(startMs: number, endMs: number, cause: string) {
+  if (endMs - startMs < MIN_OUTAGE_MS) return
+  tracker.recordOutage(startMs, endMs)
+  const passed = tracker.reevaluate(dayWindow)
+  console.warn(
+    `[outage] ${cause}: ${Math.round((endMs - startMs) / 1000)}s from ${new Date(startMs).toISOString()} ` +
+      `taken off the daily goal; ${passed} day(s) now passed`,
+  )
 }
 
 /** The running and the upcoming challenge of a track. */
@@ -94,6 +134,16 @@ export async function startBot() {
     setupJury(c, reports, currentChallenge)
   })
   client.on(Events.VoiceStateUpdate, (_old, state) => evaluate(state))
+  // While disconnected from Discord, nobody new can be counted: treat it like downtime.
+  client.on(Events.ShardDisconnect, () => {
+    disconnectedAt ??= Date.now()
+    console.warn('[bot] disconnected from Discord')
+  })
+  client.on(Events.ShardReconnecting, () => {
+    disconnectedAt ??= Date.now()
+  })
+  client.on(Events.ShardResume, () => onReconnected())
+  client.on(Events.ShardReady, () => onReconnected())
   await client.login(config.discord.botToken)
 }
 
@@ -114,16 +164,39 @@ function evaluate(state: VoiceState) {
   }
 }
 
-/** Re-checks everyone currently in the challenge channels (startup, new registrations). */
+function onReconnected() {
+  if (disconnectedAt === null) return
+  recordOutage(disconnectedAt, Date.now(), 'disconnected from Discord')
+  disconnectedAt = null
+  console.log('[bot] reconnected to Discord')
+  refreshParticipants().catch((err) => console.error('[tracker] refresh failed', err))
+}
+
+/**
+ * Re-checks everyone in the challenge channels (startup, new registrations, every minute), and
+ * stops counting anyone no longer there, in case a leave event was missed while disconnected.
+ */
 async function evaluateChannels() {
   if (!client?.isReady()) return
+  const present = new Set<string>()
+  let allChannelsSeen = true
   for (const channelId of voiceChannels()) {
     const channel = await client.channels.fetch(channelId).catch(() => null)
     if (channel?.type !== ChannelType.GuildVoice) {
       console.warn(`[tracker] voice channel ${channelId} not found or not visible to the bot`)
+      allChannelsSeen = false
       continue
     }
-    for (const member of channel.members.values()) evaluate(member.voice)
+    for (const member of channel.members.values()) {
+      evaluate(member.voice)
+      present.add(member.id)
+    }
+  }
+  if (!allChannelsSeen) return
+  for (const discordId of tracker.activeIds()) {
+    if (present.has(discordId)) continue
+    tracker.stop(discordId)
+    console.log(`[tracker] stopped counting ${discordId} (no longer in a challenge channel)`)
   }
 }
 
@@ -201,6 +274,10 @@ async function startTracking() {
     return
   }
   tracker.setSlotResolver(slotOf)
+  // A gap since the last heartbeat means the server was down (crash, deploy, host outage).
+  const lastAlive = tracker.lastHeartbeat()
+  if (lastAlive !== null) recordOutage(lastAlive, Date.now(), 'server was down')
+  flush()
   await refreshParticipants()
   const balance = await oracleBalanceSol()
   for (const track of ACTIVE_TRACKS) {
@@ -211,10 +288,10 @@ async function startTracking() {
   }
   console.log(`[tracker] ${registrations.size} participants`)
   if (balance < 0.05) console.warn(`[chain] oracle ${oracleAddress} has only ${balance} SOL — top it up`)
-  setInterval(() => tracker.flush(), FLUSH_INTERVAL_MS)
+  setInterval(flush, FLUSH_INTERVAL_MS)
   setInterval(() => refreshParticipants().catch((err) => console.error('[tracker] refresh failed', err)), PARTICIPANT_REFRESH_MS)
   setInterval(() => {
-    tracker.flush()
+    flush()
     syncChain().catch((err) => console.error('[chain] sync failed', err))
   }, CHAIN_SYNC_MS)
   await syncChain().catch((err) => console.error('[chain] sync failed', err))

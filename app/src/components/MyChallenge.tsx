@@ -40,7 +40,7 @@ function dayLabel(index: number, challengeStartMs: number, dayMs: number) {
   return WEEKDAYS[(day + 6) % 7]
 }
 
-type Day = { dayIndex: number; seconds: number; goalMet: boolean }
+type Day = { dayIndex: number; seconds: number; goalSeconds?: number; goalMet: boolean }
 
 /** One square per challenge day; filled as camera time adds up. Empty squares before joining. */
 function DayGrid({
@@ -59,7 +59,8 @@ function DayGrid({
   return (
     <ol className="day-grid">
       {days.map((day) => {
-        const fill = goalSeconds > 0 ? Math.min(1, day.seconds / goalSeconds) : 0
+        const goal = day.goalSeconds ?? goalSeconds
+        const fill = day.goalMet ? 1 : goal > 0 ? Math.min(1, day.seconds / goal) : 0
         const label = dayLabel(day.dayIndex, startMs, track.dayMs)
         return (
           <li
@@ -68,7 +69,7 @@ function DayGrid({
             data-state={day.goalMet ? 'passed' : fill > 0 ? 'partial' : 'open'}
             data-today={day.dayIndex === today || undefined}
             style={{ '--fill': `${fill * 100}%` } as React.CSSProperties}
-            title={goalSeconds > 0 ? `${label} · ${hours(day.seconds)} of ${hours(goalSeconds)}` : label}
+            title={goal > 0 ? `${label} · ${hours(day.seconds)} of ${hours(goal)}` : label}
           >
             {label}
           </li>

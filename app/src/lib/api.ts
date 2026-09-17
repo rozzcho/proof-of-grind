@@ -36,7 +36,14 @@ export function confirmRegistration() {
   return request<GrantResult>('/api/register/confirm', { method: 'POST' })
 }
 
-export type ChallengeDay = { dayIndex: number; seconds: number; goalMet: boolean; recorded: boolean }
+export type ChallengeDay = {
+  dayIndex: number
+  seconds: number
+  /** That day's goal, lowered by any server outage (older servers leave it out). */
+  goalSeconds?: number
+  goalMet: boolean
+  recorded: boolean
+}
 
 export type Progress = {
   track: number

@@ -106,3 +106,50 @@ test('records are pending until marked, and time outside a challenge is not buck
   assert.deepEqual(t.pendingRecords(), [])
   assert.equal(t.challenge('u', 2, 100, 6)[0].recorded, true)
 })
+
+test('server downtime comes off the goal of the days it overlaps', () => {
+  const t = new GrindTracker(':memory:', 3 * 60 * 60)
+  const day = at('2026-09-22T00:00:00Z')
+  t.recordOutage(at('2026-09-21T23:00:00Z'), at('2026-09-22T01:00:00Z')) // 1h into this day
+  assert.equal(t.outageMs(day, day + 24 * H), 1 * H)
+  assert.equal(t.goalMsFor(day, day + 24 * H), 2 * H)
+  assert.equal(t.goalMsFor(day - 24 * H, day), 2 * H)
+  assert.equal(t.goalMsFor(day + 24 * H, day + 48 * H), 3 * H)
+})
+
+test('a day that meets its lowered goal is marked passed after an outage', () => {
+  const t = new GrindTracker(':memory:', 3 * 60 * 60)
+  const day = at('2026-09-22T00:00:00Z')
+  const window = (): [number, number] => [day, day + 24 * H]
+  t.setSlotResolver(() => ({ track: 0, challengeId: 0, dayIndex: 1, endMs: day + 24 * H, startMs: day }))
+
+  t.start('u', day + 10 * H)
+  t.stop('u', day + 12.5 * H) // 2.5h: short of the 3h goal
+  assert.deepEqual(t.pendingRecords(), [])
+
+  t.recordOutage(day + 2 * H, day + 3 * H) // the server was down for an hour that day
+  assert.equal(t.reevaluate(window), 1)
+  assert.deepEqual(t.pendingRecords(), [{ discordId: 'u', track: 0, challengeId: 0, dayIndex: 1 }])
+  const [progress] = t.challenge('u', 0, 0, 7, window).slice(1, 2)
+  assert.equal(progress.goalSeconds, 2 * 60 * 60)
+  assert.equal(progress.goalMet, true)
+})
+
+test('time after an outage counts toward the lowered goal', () => {
+  const t = new GrindTracker(':memory:', 3 * 60 * 60)
+  const day = at('2026-09-22T00:00:00Z')
+  t.setSlotResolver(() => ({ track: 0, challengeId: 0, dayIndex: 1, endMs: day + 24 * H, startMs: day }))
+  t.recordOutage(day, day + 1 * H)
+  t.start('u', day + 5 * H)
+  t.stop('u', day + 7 * H) // 2h reaches the lowered 2h goal
+  assert.equal(t.pendingRecords().length, 1)
+})
+
+test('the heartbeat survives a restart', () => {
+  const t = new GrindTracker(':memory:', 60)
+  assert.equal(t.lastHeartbeat(), null)
+  t.heartbeat(1000)
+  t.heartbeat(2000)
+  assert.equal(t.lastHeartbeat(), 2000)
+  assert.deepEqual(t.activeIds(), [])
+})
