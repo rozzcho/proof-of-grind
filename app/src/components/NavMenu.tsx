@@ -5,8 +5,8 @@ import { NavToggle, ToggleList } from './NavToggle'
 const CONTACTS = [
   { title: 'Telegram', label: '@suynjo', href: 'https://t.me/suynjo' },
   { title: 'Email', label: 'suynjo@gmail.com', href: 'mailto:suynjo@gmail.com' },
-  // Add the Discord support channel link here once it exists.
-  { title: 'Discord', label: 'Support channel coming soon', href: null },
+  { title: 'Discord', label: '#ask-the-team', href: 'https://discord.gg/scNbdXFTxq' },
+  { title: 'Bugs & feedback', label: '#bug-reports', href: 'https://discord.gg/wxEaVBygGk' },
 ]
 
 type Section = 'summary' | 'start' | 'rules' | 'contact'

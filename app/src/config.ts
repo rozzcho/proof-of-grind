@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js'
 import idl from './idl/proof_of_grind.json'
 
 // Discord invite link — edit here
-export const DISCORD_INVITE_URL = 'https://discord.gg/BuQ4bymD'
+export const DISCORD_INVITE_URL = 'https://discord.gg/QAJcGjP3Sh'
 
 // Defaults target the local validator (scripts/local-validator.sh); deployments set VITE_*.
 export const RPC_ENDPOINT = import.meta.env.VITE_RPC_URL ?? 'http://127.0.0.1:8899'
