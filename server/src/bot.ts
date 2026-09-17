@@ -21,6 +21,8 @@ import {
   trackConfigOf,
   TRACKS,
 } from './solana.ts'
+import { setupJury } from './jury.ts'
+import { ReportStore } from './reports.ts'
 import { GrindTracker, type Slot } from './tracker.ts'
 
 export type GrantResult = { roleGranted: boolean; joinedGuild: boolean; reason?: string }
@@ -30,6 +32,7 @@ let client: Client | null = null
 const dbPath = typeof config.dbPath === 'string' ? config.dbPath : fileURLToPath(config.dbPath)
 mkdirSync(dirname(dbPath), { recursive: true })
 export const tracker = new GrindTracker(dbPath, config.dailyGoalSeconds)
+const reports = new ReportStore(dbPath)
 
 const FLUSH_INTERVAL_MS = config.flushIntervalMs
 const PARTICIPANT_REFRESH_MS = 60_000
@@ -43,6 +46,12 @@ type Registration = { track: number; challengeId: number }
  * Time is counted for all of them; it goes to whichever challenge is running at that moment.
  */
 let registrations = new Map<string, Registration[]>()
+
+/** The challenge a participant is running right now, if any. */
+function currentChallenge(discordId: string) {
+  const slot = slotOf(discordId, Date.now())
+  return slot && { track: slot.track, challengeId: slot.challengeId }
+}
 
 function slotOf(discordId: string, atMs: number): Slot | null {
   for (const { track, challengeId } of registrations.get(discordId) ?? []) {
@@ -82,6 +91,7 @@ export async function startBot() {
     await syncRoles().catch((err) => console.error('[bot] role sync failed', err))
     setInterval(() => syncRoles().catch((err) => console.error('[bot] role sync failed', err)), ROLE_SYNC_MS)
     await startTracking().catch((err) => console.error('[tracker] failed to start', err))
+    setupJury(c, reports, currentChallenge)
   })
   client.on(Events.VoiceStateUpdate, (_old, state) => evaluate(state))
   await client.login(config.discord.botToken)

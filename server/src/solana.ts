@@ -46,6 +46,7 @@ function idlConstant(name: string): string {
 
 const USDC_MINT = new PublicKey(idlConstant('USDC_MINT'))
 export const MAX_MULTIPLY = Number(idlConstant('MAX_MULTIPLY'))
+export const MAX_WARNINGS = Number(idlConstant('MAX_WARNINGS'))
 
 export const TRACK_WEEKLY = Number(idlConstant('TRACK_WEEKLY'))
 export const TRACK_BIWEEKLY = Number(idlConstant('TRACK_BIWEEKLY'))

@@ -25,6 +25,8 @@ export const config = {
     voiceChannelId: optional('DISCORD_VOICE_CHANNEL_ID'),
     biweeklyRoleId: optional('DISCORD_BIWEEKLY_ROLE_ID'),
     biweeklyVoiceChannelId: optional('DISCORD_BIWEEKLY_VOICE_CHANNEL_ID'),
+    // Staff channel where report outcomes are logged (optional).
+    reportsChannelId: optional('DISCORD_REPORTS_CHANNEL_ID'),
   },
   dailyGoalSeconds: Number(process.env.DAILY_GOAL_SECONDS ?? 3 * 60 * 60),
   // Tracks this server runs, e.g. "0,1". 0 = Weekly, 1 = Biweekly, 2 = the short test track.
