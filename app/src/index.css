@@ -8,8 +8,16 @@
 
 :root {
   --bg: #000;
+  /* The accent: mint on dark, navy on light. */
   --cyan: #00f5f5;
   --hover: #d4d4d4;
+  --error: #ff6b6b;
+  --muted-text: #2f7a78;
+  --muted-border: #1f4f4e;
+  /* Wallet and Discord buttons keep their own colors in both themes. */
+  --wallet: #512da8;
+  --wallet-hover: #3b1f82;
+  color-scheme: dark;
   --logo-size: clamp(60px, 8.5vw, 160px);
   --title-size: clamp(34px, 6vw, 92px);
   --logo-gap: clamp(10px, 2.5vw, 40px);
@@ -17,6 +25,17 @@
   font-family: 'Geist Pixel', ui-monospace, monospace;
   color: var(--cyan);
   background: var(--bg);
+}
+
+/* Light mode: white ground, navy accent. Chosen with the switch next to the clock. */
+:root[data-theme='light'] {
+  --bg: #fff;
+  --cyan: #0024c0;
+  --hover: #6b7280;
+  --error: #c62828;
+  --muted-text: #8a97cf;
+  --muted-border: #c3cbeb;
+  color-scheme: light;
 }
 
 body {
@@ -81,12 +100,12 @@ a:focus-visible,
   height: clamp(38px, 3.9vw, 54px);
   padding: 0 clamp(16px, 2vw, 34px);
   font-size: clamp(13px, 1.3vw, 19px);
-  background-color: #512da8;
+  background-color: var(--wallet);
   transition: background-color 120ms ease;
 }
 
 .wallet-adapter-button:not([disabled]):hover {
-  background-color: #3b1f82;
+  background-color: var(--wallet-hover);
 }
 
 .discord-button {
@@ -181,7 +200,7 @@ button.nav-link {
 }
 
 .pay-error {
-  color: #ff6b6b;
+  color: var(--error);
   white-space: pre-wrap;
   max-height: 160px;
   overflow-y: auto;
@@ -318,8 +337,8 @@ button.nav-link:focus-visible {
 .pay-button[data-state='waiting'],
 .pay-button[data-state='done'] {
   opacity: 1;
-  color: #2f7a78;
-  border-color: #1f4f4e;
+  color: var(--muted-text);
+  border-color: var(--muted-border);
 }
 
 .status {
