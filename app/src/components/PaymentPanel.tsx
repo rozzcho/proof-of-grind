@@ -83,6 +83,8 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const [access, setAccess] = useState<Access>({ kind: 'idle' })
   const [multiply, setMultiply] = useState(1)
   const [showInfo, setShowInfo] = useState(false)
+  const infoRef = useRef<HTMLParagraphElement>(null)
+  const infoButtonRef = useRef<HTMLButtonElement>(null)
   const challenge = useMemo(() => challengePda(CHALLENGE.track, openChallenge.id), [openChallenge.id])
 
   const busy = status.kind === 'paying' || access.kind === 'checking'
@@ -115,6 +117,18 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
       setStatus({ kind: 'error', message: errorMessage(err) })
     }
   }, [connection, publicKey, challenge])
+
+  // A click anywhere outside the multiply info closes it. (The i button toggles it itself.)
+  useEffect(() => {
+    if (!showInfo) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (infoRef.current?.contains(target) || infoButtonRef.current?.contains(target)) return
+      setShowInfo(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [showInfo])
 
   // Refresh balance/registration each time the section is opened (not mid-payment).
   useEffect(() => {
@@ -266,12 +280,18 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
           <button
             type="button"
             className="pay-info"
+            ref={infoButtonRef}
             aria-label="What is multiply?"
             aria-expanded={showInfo}
             onClick={() => setShowInfo((v) => !v)}
           >
             i
           </button>
+          {showInfo && (
+            <p className="pay-info-text" ref={infoRef}>
+              Stake as much as you're confident in, and take home a bigger reward! See Rules for details.
+            </p>
+          )}
         </dt>
         <dd>
           <span className="pay-multiply">
@@ -294,11 +314,6 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
               +
             </button>
           </span>
-          {showInfo && (
-            <p className="pay-info-text">
-              Stake as much as you're confident in, and take home a bigger reward! See Rules for details.
-            </p>
-          )}
           </span>
         </dd>
         <dt>Your balance</dt>

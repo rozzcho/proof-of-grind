@@ -179,7 +179,8 @@ button.nav-link {
 }
 
 .pay-rows dt {
-  opacity: 0.7;
+  /* Dimmed with color, not opacity, so the multiply info that opens inside it stays solid. */
+  color: color-mix(in srgb, var(--cyan) 70%, transparent);
 }
 
 .pay-rows dd {
@@ -448,6 +449,12 @@ button.nav-link:focus-visible {
   transition: color 120ms ease;
 }
 
+.card-head-end {
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+}
+
 .card-back:hover:not(:disabled) {
   color: var(--hover);
 }
@@ -545,6 +552,7 @@ button.nav-link:focus-visible {
 
 /* Multiply stepper + info */
 .pay-multiply-label {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -578,17 +586,20 @@ button.nav-link:focus-visible {
   display: inline-block;
 }
 
-/* Floats over the box so opening it does not change the box size. */
+/* Drops down from the Multiply label across the full card width, over the rows below,
+   so opening it does not change the card size. (100cqi = the card's content width.) */
 .pay-info-text {
   position: absolute;
   z-index: 1;
   top: calc(100% + 8px);
-  right: 0;
-  width: max(220px, 100%);
+  left: 0;
+  width: 100cqi;
+  box-sizing: border-box;
   margin: 0;
   padding: 10px 12px;
   border: 1px dashed var(--cyan);
   background: var(--bg);
+  color: var(--cyan);
   font-size: 0.9em;
   line-height: 1.45;
   text-align: left;
@@ -746,4 +757,49 @@ button.nav-link:focus-visible {
 .card-center {
   text-align: center;
   text-wrap: balance;
+}
+
+/* A pane that must not grow the card: it takes the height the other pane sets and scrolls. */
+.card-pane-fill {
+  height: 0;
+  min-height: 100%;
+}
+
+.records {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.record {
+  padding: 10px 0;
+  border-bottom: 1px dotted color-mix(in srgb, var(--cyan) 40%, transparent);
+}
+
+.record:first-child {
+  padding-top: 0;
+}
+
+.record p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.record-meta {
+  margin-top: 4px !important;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.record[data-result='missed'] .record-title span:last-child {
+  opacity: 0.6;
+}
+
+.record[data-result='won'] .record-title span:last-child {
+  color: var(--hover);
 }

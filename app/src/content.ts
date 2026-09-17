@@ -74,4 +74,20 @@ export const RULES: ToggleItem[] = [
     title: 'If nobody wins',
     body: 'If no one passes every day, the prize pool rolls over to the next challenge.',
   },
+  {
+    title: 'Server outages',
+    body: 'If our server goes down and camera time cannot be counted, that time is taken off the daily goal for that day.',
+  },
+  {
+    title: 'Warnings',
+    body: 'Anyone in the voice channel can report a participant. The bot asks 3 random participants in the same room to check, and if at least 2 agree, the reported person gets a warning. Warnings are given for not actually studying on camera (an empty desk, a looped video) or for not treating others with respect. 3 warnings in one challenge and you are out.',
+  },
+  {
+    title: 'Claim deadline',
+    body: 'Claim your reward within 4 weeks after the challenge ends. Rewards left unclaimed after that go to the platform.',
+  },
+  {
+    title: 'Recording window',
+    body: 'Passed days can still be recorded for 2 days after a challenge ends, so a short server outage does not cost anyone a day. Results are tallied and rewards open after that.',
+  },
 ]

@@ -10,6 +10,7 @@ import { PRIZE_POOL_SHARE, useChallengeState } from '../lib/challenge'
 import { challengePda, participantPda, usdcAta } from '../lib/program'
 import type { Challenge } from '../lib/schedule'
 import { ChallengeDates } from './ChallengeCard'
+import { Records, type RecordOrder } from './Records'
 import { signAndConfirm } from '../lib/send'
 
 type Claim = { kind: 'idle' } | { kind: 'sending' } | { kind: 'done' } | { kind: 'error'; message: string }
@@ -79,7 +80,62 @@ const emptyDays: Day[] = Array.from({ length: CHALLENGE.days }, (_, dayIndex) =>
  * Always shown. Before joining it shows the running challenge with empty day squares; after joining,
  * your progress, what you staked, and the Claim button once it is settled.
  */
-export function MyChallenge({ running, upcoming }: { running: Challenge | null; upcoming: Challenge }) {
+type Props = { running: Challenge | null; upcoming: Challenge }
+
+/**
+ * My Challenge, with Records one click away. Both views share one grid cell, so the card keeps
+ * its size when switching between them.
+ */
+export function MyChallenge(props: Props) {
+  const { publicKey } = useWallet()
+  const [showRecords, setShowRecords] = useState(false)
+  const [order, setOrder] = useState<RecordOrder>('latest')
+
+  useEffect(() => {
+    if (!showRecords) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setShowRecords(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showRecords])
+
+  return (
+    <section className="card card-stack">
+      <div className="card-pane" aria-hidden={showRecords} inert={showRecords} data-active={!showRecords}>
+        <div className="card-head">
+          <button type="button" className="card-back" onClick={() => setShowRecords(true)}>
+            Records
+          </button>
+          <h2 className="card-title">My Challenge</h2>
+        </div>
+        <MyChallengeBody {...props} />
+      </div>
+      <div
+        className="card-pane card-pane-fill"
+        aria-hidden={!showRecords}
+        inert={!showRecords}
+        data-active={showRecords}
+      >
+        <div className="card-head">
+          <button type="button" className="card-back" onClick={() => setShowRecords(false)}>
+            ← Back
+          </button>
+          <h2 className="card-title">Records</h2>
+          <button
+            type="button"
+            className="zone-toggle card-head-end"
+            onClick={() => setOrder((o) => (o === 'latest' ? 'oldest' : 'latest'))}
+            aria-label={`Showing ${order} first. Switch.`}
+          >
+            {order}
+          </button>
+        </div>
+        <Records wallet={publicKey} open={showRecords} order={order} />
+      </div>
+    </section>
+  )
+}
+
+function MyChallengeBody({ running, upcoming }: Props) {
   const { connection } = useConnection()
   const { publicKey, signTransaction } = useWallet()
   const anchorWallet = useAnchorWallet()
@@ -156,8 +212,7 @@ export function MyChallenge({ running, upcoming }: { running: Challenge | null; 
     const shown = running ?? upcoming
     const today = running ? Math.floor((now - running.startMs) / CHALLENGE.dayMs) : null
     return (
-      <section className="card">
-        <h2 className="card-title">My Challenge</h2>
+      <>
         <DayGrid startMs={shown.startMs} days={emptyDays} goalSeconds={0} today={today} />
         {!publicKey ? (
           <p className="card-empty card-center">
@@ -180,7 +235,7 @@ export function MyChallenge({ running, upcoming }: { running: Challenge | null; 
           <p className="card-empty">No challenge running yet.</p>
         )}
         {publicKey && <p className="card-note">You haven't joined a challenge yet.</p>}
-      </section>
+      </>
     )
   }
 
@@ -229,8 +284,7 @@ export function MyChallenge({ running, upcoming }: { running: Challenge | null; 
   }
 
   return (
-    <section className="card">
-      <h2 className="card-title">My Challenge</h2>
+    <>
       <DayGrid
         startMs={startMs}
         days={progress.days}
@@ -287,6 +341,6 @@ export function MyChallenge({ running, upcoming }: { running: Challenge | null; 
           {claimed ? 'Reward claimed.' : claim.kind === 'sending' ? 'Claiming…' : 'Claim reward'}
         </button>
       </div>
-    </section>
+    </>
   )
 }
