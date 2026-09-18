@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
+import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import { Transaction } from '@solana/web3.js'
 import { CHALLENGE, NETWORK_LABEL, RULES_URL, explorerTxUrl, trackConfig } from '../config'
 import {
@@ -76,6 +77,7 @@ type Props = {
 export function PaymentPanel({ challenge: openChallenge, open, discordError, onBusyChange, onRegisteredChange }: Props) {
   const { connection } = useConnection()
   const { publicKey, signTransaction } = useWallet()
+  const { setVisible: setWalletModalVisible } = useWalletModal()
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
   const [balance, setBalance] = useState<number | null>(null)
   const [sol, setSol] = useState<number | null>(null)
@@ -104,11 +106,17 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const discord = me?.discord ?? null
 
   const load = useCallback(async () => {
-    if (!publicKey) return
     setStatus({ kind: 'loading' })
     getMe()
       .then(setMe)
       .catch(() => setMe({ oauthConfigured: false, discord: null }))
+    // Without a wallet the entry fee and multiply still show; only the balances wait.
+    if (!publicKey) {
+      setBalance(null)
+      setSol(null)
+      setStatus({ kind: 'ready' })
+      return
+    }
     try {
       const [participantInfo, tokenBalance, lamports] = await Promise.all([
         connection.getAccountInfo(participantPda(challenge, publicKey)),
@@ -223,7 +231,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
   const needsSol = sol !== null && sol < 0.01
   const insufficient = balance !== null && balance < total
   const canEdit = status.kind === 'ready' || status.kind === 'error'
-  const displayBalance = balance === null ? '…' : balance.toFixed(2)
+  const displayBalance = publicKey ? (balance === null ? '…' : balance.toFixed(2)) : '-'
   const accessText = accessMessage(access)
   const canRetryAccess = access.kind === 'failed' || (access.kind === 'done' && !access.result.roleGranted)
 
@@ -234,7 +242,9 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
     ? { text: `Registered. ${accessText ?? 'Start grinding!'}` }
     : status.kind === 'error'
       ? { text: status.message, error: true }
-      : discordError && !discord
+      : !publicKey
+        ? { text: 'Connect your wallet to pay.' }
+        : discordError && !discord
         ? { text: 'Discord login failed. Try again.', error: true }
         : me && !me.oauthConfigured && !discord
           ? { text: 'Discord login is not set up yet.', error: true }
@@ -274,7 +284,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
       type="button"
       className="pay-button"
       onClick={pay}
-      disabled={status.kind === 'loading' || busy || insufficient || !discord || needsSol || !agreed}
+      disabled={status.kind === 'loading' || busy || insufficient || !publicKey || !discord || needsSol || !agreed}
     >
       {status.kind === 'paying' ? 'Processing…' : `Pay ${formatUsdc(total)} USDC`}
     </button>
@@ -329,7 +339,15 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
         <dt>Your balance</dt>
         <dd>{displayBalance} USDC</dd>
         <dt>Wallet</dt>
-        <dd>{publicKey ? shorten(publicKey.toBase58()) : '-'}</dd>
+        <dd>
+          {publicKey ? (
+            shorten(publicKey.toBase58())
+          ) : (
+            <button type="button" className="pay-link" onClick={() => setWalletModalVisible(true)}>
+              Connect wallet
+            </button>
+          )}
+        </dd>
         <dt>Discord</dt>
         <dd>
           {me === null ? (

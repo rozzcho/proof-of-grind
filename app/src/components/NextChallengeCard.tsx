@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import { BIWEEKLY, BIWEEKLY_OPEN } from '../config'
 import { challengePda, participantPda } from '../lib/program'
 import type { Challenge } from '../lib/schedule'
@@ -67,11 +66,7 @@ function useRegistered(challenges: Challenge[], refresh: number) {
  * to the overview. Connects a wallet first when needed.
  */
 export function NextChallengeCard({ challenge, biweekly }: { challenge: Challenge; biweekly: Challenge }) {
-  const { connected } = useWallet()
-  const { visible: walletModalVisible, setVisible: setWalletModalVisible } = useWalletModal()
-  const [resuming, setResuming] = useState(returned.resume)
-  const [pending, setPending] = useState(false)
-  const [registering, setRegistering] = useState(false)
+  const [registering, setRegistering] = useState(returned.resume)
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [formTrack, setFormTrack] = useState(() =>
@@ -82,37 +77,6 @@ export function NextChallengeCard({ challenge, biweekly }: { challenge: Challeng
   const [shownTrack, setShownTrack] = useState(formTrack)
   const shown = shownTrack === biweekly.track ? biweekly : challenge
   const shownOpen = shown !== biweekly || BIWEEKLY_OPEN
-
-  // Back from Discord: wait for wallet auto-connect, then reopen the form.
-  useEffect(() => {
-    if (!resuming) return
-    if (connected) {
-      setResuming(false)
-      setRegistering(true)
-      return
-    }
-    const timer = setTimeout(() => {
-      setResuming(false)
-      setPending(true)
-      setWalletModalVisible(true)
-    }, 1500)
-    return () => clearTimeout(timer)
-  }, [resuming, connected, setWalletModalVisible])
-
-  // Open the form right after the wallet connects; drop the intent if the wallet modal is dismissed.
-  useEffect(() => {
-    if (!pending) return
-    if (connected) {
-      setPending(false)
-      setRegistering(true)
-    } else if (!walletModalVisible) {
-      setPending(false)
-    }
-  }, [pending, connected, walletModalVisible])
-
-  useEffect(() => {
-    if (!connected) setRegistering(false)
-  }, [connected])
 
   const back = useCallback(() => {
     if (busy) return
@@ -142,15 +106,12 @@ export function NextChallengeCard({ challenge, biweekly }: { challenge: Challeng
     } catch {
       // Falls back to the first track.
     }
-    if (connected) {
-      setRegistering(true)
-    } else {
-      setPending(true)
-      setWalletModalVisible(true)
-    }
+    // The form opens without a wallet: the entry fee and multiply are the same for everyone,
+    // and the form's Wallet row connects one when it is time to pay.
+    setRegistering(true)
   }
 
-  const showForm = registering && connected
+  const showForm = registering
   const formRegistered = registered[formTrack]
 
   // Both views sit in the same grid cell, so the card keeps the height of the taller one
