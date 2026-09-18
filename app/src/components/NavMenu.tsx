@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { HOW_TO_START, RULES, SUMMARY } from '../content'
 import { RULES_URL } from '../config'
-import { LineList, NavToggle, ToggleList } from './NavToggle'
+import { getMe } from '../lib/api'
+import { LineList, NavLink, NavToggle, ToggleList } from './NavToggle'
 
 const CONTACTS = [
   { title: 'Telegram', label: '@suynjo', href: 'https://t.me/suynjo' },
@@ -13,7 +14,23 @@ const CONTACTS = [
 type Section = 'summary' | 'start' | 'rules' | 'contact'
 
 /** Only one section is open at a time: opening one closes the others. */
+/** True when the Discord account signed in here may open the staff page. */
+function useStaff() {
+  const [staff, setStaff] = useState(false)
+  useEffect(() => {
+    const check = () =>
+      getMe()
+        .then((me) => setStaff(Boolean(me.staff)))
+        .catch(() => setStaff(false))
+    check()
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
+  }, [])
+  return staff
+}
+
 export function NavMenu() {
+  const staff = useStaff()
   const [open, setOpen] = useState<Section | null>(null)
   const toggle = (section: Section) => ({
     open: open === section,
@@ -60,6 +77,7 @@ export function NavMenu() {
           ))}
         </ul>
       </NavToggle>
+      {staff && <NavLink label="Staff" href="/staff" />}
     </nav>
   )
 }

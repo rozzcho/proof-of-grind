@@ -10,6 +10,18 @@ type Props = {
   onToggle?: () => void
 }
 
+/** Menu entry that is just a link. */
+export function NavLink({ label, href }: { label: string; href: string }) {
+  return (
+    <div className="nav-item">
+      <span className="nav-arrow">=&gt;</span>
+      <a className="nav-link" href={href}>
+        {label}
+      </a>
+    </div>
+  )
+}
+
 /** Menu entry that slides its content open below it. */
 export function NavToggle({ label, children, open: controlledOpen, onToggle }: Props) {
   const [localOpen, setLocalOpen] = useState(false)

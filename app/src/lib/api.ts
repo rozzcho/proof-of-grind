@@ -1,6 +1,6 @@
 export type DiscordUser = { id: string; username: string; avatarUrl: string | null }
 
-export type Me = { oauthConfigured: boolean; discord: DiscordUser | null }
+export type Me = { oauthConfigured: boolean; discord: DiscordUser | null; staff?: boolean }
 
 export type GrantResult = { roleGranted: boolean; joinedGuild: boolean; reason?: string }
 

@@ -109,8 +109,16 @@ a:focus-visible,
 }
 
 .discord-button {
-  display: block;
-  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .discord-button img {
@@ -118,8 +126,62 @@ a:focus-visible,
   height: clamp(48px, 6vw, 74px);
 }
 
+.discord-avatar {
+  border-radius: 50%;
+}
+
+.discord-label {
+  max-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .discord-button:hover {
+  color: var(--hover);
   filter: brightness(1.15);
+}
+
+.discord-button:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 4px;
+}
+
+/* Who is connected, and what to do about it. */
+.discord-menu {
+  position: relative;
+}
+
+.discord-dropdown {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--cyan);
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+.discord-dropdown a,
+.discord-dropdown button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.discord-dropdown a:hover,
+.discord-dropdown button:hover {
+  color: var(--hover);
 }
 
 /* Menu (right column) */
@@ -316,6 +378,10 @@ button.nav-link:focus-visible {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+}
+
+.account-actions {
+  font-size: clamp(13px, 1.3vw, 19px);
 }
 
 .account-actions .discord-button img {

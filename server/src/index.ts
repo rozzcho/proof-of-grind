@@ -89,6 +89,8 @@ app.get('/api/me', async (c) => {
   return c.json({
     oauthConfigured,
     discord: session ? { id: session.discordId, username: session.username, avatarUrl: session.avatarUrl } : null,
+    // Lets the site offer the staff page to the people who can use it.
+    staff: Boolean(session && config.adminDiscordIds.includes(session.discordId)),
   })
 })
 
