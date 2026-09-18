@@ -255,6 +255,11 @@ a.pay-button {
   color: var(--hover);
 }
 
+/* Still to do before paying: connecting a wallet or Discord. */
+.pay-link-todo {
+  color: var(--error);
+}
+
 .pay-discord {
   display: inline-flex;
   align-items: center;

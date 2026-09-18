@@ -343,7 +343,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
           {publicKey ? (
             shorten(publicKey.toBase58())
           ) : (
-            <button type="button" className="pay-link" onClick={() => setWalletModalVisible(true)}>
+            <button type="button" className="pay-link pay-link-todo" onClick={() => setWalletModalVisible(true)}>
               Connect wallet
             </button>
           )}
@@ -363,7 +363,7 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
               )}
             </span>
           ) : (
-            <a className="pay-link" href={DISCORD_LOGIN_URL}>
+            <a className="pay-link pay-link-todo" href={DISCORD_LOGIN_URL}>
               Connect Discord
             </a>
           )}
