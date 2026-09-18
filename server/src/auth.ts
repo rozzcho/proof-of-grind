@@ -22,6 +22,11 @@ export async function getSession(c: Context): Promise<Session | null> {
   return (id && sessions.get(id)) || null
 }
 
+/** Discord's own default avatar for an account without one: the index comes from the user id. */
+function defaultAvatarUrl(userId: string) {
+  return `https://cdn.discordapp.com/embed/avatars/${(BigInt(userId) >> 22n) % 6n}.png`
+}
+
 export const auth = new Hono()
 
 auth.get('/discord/login', async (c) => {
@@ -73,7 +78,9 @@ auth.get('/discord/callback', async (c) => {
   sessions.set(sessionId, {
     discordId: user.id,
     username: user.global_name || user.username,
-    avatarUrl: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : null,
+    avatarUrl: user.avatar
+      ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`
+      : defaultAvatarUrl(user.id),
     accessToken: token.access_token,
   })
   await setSignedCookie(c, SESSION_COOKIE, sessionId, config.sessionSecret, {
