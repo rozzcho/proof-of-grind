@@ -242,19 +242,15 @@ export function PaymentPanel({ challenge: openChallenge, open, discordError, onB
     ? { text: `Registered. ${accessText ?? 'Start grinding!'}` }
     : status.kind === 'error'
       ? { text: status.message, error: true }
-      : !publicKey
-        ? { text: 'Connect your wallet to pay.' }
-        : discordError && !discord
+      : discordError && !discord
         ? { text: 'Discord login failed. Try again.', error: true }
         : me && !me.oauthConfigured && !discord
           ? { text: 'Discord login is not set up yet.', error: true }
-          : me?.oauthConfigured && !discord
-            ? { text: 'Connect Discord to pay.' }
-            : needsSol
-              ? { text: 'You need a little SOL for fees.' }
-              : insufficient && status.kind !== 'loading'
-                ? { text: 'Not enough USDC.', error: true }
-                : null
+          : needsSol
+            ? { text: 'You need a little SOL for fees.' }
+            : insufficient && status.kind !== 'loading'
+              ? { text: 'Not enough USDC.', error: true }
+              : null
 
   const action = done ? (
     discord && (canRetryAccess || (status.kind === 'registered' && access.kind === 'idle')) ? (
