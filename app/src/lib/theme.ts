@@ -15,6 +15,12 @@ let theme: Theme = (() => {
 
 function apply() {
   document.documentElement.dataset.theme = theme
+  // The tab icon follows too: the navy flame in light mode.
+  const suffix = theme === 'light' ? '-light' : ''
+  document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.setAttribute('href', `/favicon${suffix}.png`)
+  document
+    .querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
+    ?.setAttribute('href', `/apple-touch-icon${suffix}.png`)
 }
 
 // Applied as soon as this module loads, before the first render, so the page never flashes the other theme.
