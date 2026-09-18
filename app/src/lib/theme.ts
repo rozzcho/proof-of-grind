@@ -5,11 +5,12 @@ export type Theme = 'dark' | 'light'
 const STORAGE_KEY = 'pog:theme'
 const listeners = new Set<() => void>()
 
+// Light by default; the switch next to the clock remembers a different choice.
 let theme: Theme = (() => {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark'
+    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light'
   } catch {
-    return 'dark'
+    return 'light'
   }
 })()
 
