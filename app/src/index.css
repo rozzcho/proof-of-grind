@@ -919,3 +919,106 @@ button.nav-link:focus-visible {
 .record[data-result='won'] .record-title span:last-child {
   color: var(--hover);
 }
+
+/* Staff page: a wide, plain read-out for running the challenges. */
+.staff {
+  max-width: 1100px;
+  margin: 0 auto;
+  font-size: clamp(13px, 1.1vw, 16px);
+}
+
+.staff-title {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 400;
+}
+
+.staff-block {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px dotted color-mix(in srgb, var(--cyan) 40%, transparent);
+}
+
+.staff-heading {
+  margin: 0 0 10px;
+  font-size: 1.1em;
+  font-weight: 400;
+}
+
+.staff .card-rows {
+  padding-left: 0;
+  margin-bottom: 14px;
+  max-width: 640px;
+}
+
+.staff-scroll {
+  overflow-x: auto;
+}
+
+.staff-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 720px;
+}
+
+.staff-table th,
+.staff-table td {
+  padding: 8px 12px 8px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px dotted color-mix(in srgb, var(--cyan) 25%, transparent);
+}
+
+.staff-table th {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.staff-credit {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.staff-note {
+  opacity: 0.7;
+}
+
+.staff-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.staff-form label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-form span {
+  opacity: 0.7;
+}
+
+.staff-form input {
+  padding: 6px 8px;
+  border: 1px solid var(--cyan);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.staff-form input:focus-visible {
+  outline: 2px solid var(--hover);
+  outline-offset: 2px;
+}
+
+.staff-form .staff-send {
+  width: auto;
+  padding: 8px 18px;
+}
+
+.staff-form .staff-note {
+  flex-basis: 100%;
+  margin: 0;
+}

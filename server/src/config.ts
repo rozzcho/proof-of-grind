@@ -28,6 +28,13 @@ export const config = {
     // Staff channel where report outcomes are logged (optional).
     reportsChannelId: optional('DISCORD_REPORTS_CHANNEL_ID'),
   },
+  // Discord accounts that may open /staff, comma separated.
+  adminDiscordIds: (process.env.ADMIN_DISCORD_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
+  // The most SOL the staff page may send in one go.
+  staffFaucetMaxSol: Number(process.env.STAFF_FAUCET_MAX_SOL ?? 0.5),
   dailyGoalSeconds: Number(process.env.DAILY_GOAL_SECONDS ?? 3 * 60 * 60),
   // Tracks this server runs, e.g. "0,1". 0 = Weekly, 1 = Biweekly, 2 = the short test track.
   // CHALLENGE_TRACK (a single track) still works for older setups.

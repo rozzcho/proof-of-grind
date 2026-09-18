@@ -173,6 +173,13 @@ export class ReportStore {
     ).map(toReport)
   }
 
+  /** The newest reports, whatever their status. */
+  recent(limit = 20) {
+    return (
+      this.#db.prepare('SELECT * FROM reports ORDER BY id DESC LIMIT ?').all(limit) as ReportRow[]
+    ).map(toReport)
+  }
+
   close(id: number, status: Exclude<ReportStatus, 'pending'>, now = Date.now()) {
     this.#db
       .prepare(`UPDATE reports SET status = ?, closed_at = ? WHERE id = ? AND status = 'pending'`)

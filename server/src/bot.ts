@@ -33,7 +33,7 @@ let client: Client | null = null
 const dbPath = typeof config.dbPath === 'string' ? config.dbPath : fileURLToPath(config.dbPath)
 mkdirSync(dirname(dbPath), { recursive: true })
 export const tracker = new GrindTracker(dbPath, config.dailyGoalSeconds)
-const reports = new ReportStore(dbPath)
+export const reports = new ReportStore(dbPath)
 
 const FLUSH_INTERVAL_MS = config.flushIntervalMs
 const PARTICIPANT_REFRESH_MS = 60_000
@@ -295,6 +295,19 @@ async function startTracking() {
     syncChain().catch((err) => console.error('[chain] sync failed', err))
   }, CHAIN_SYNC_MS)
   await syncChain().catch((err) => console.error('[chain] sync failed', err))
+}
+
+/** Discord display names for the staff page, by id; ids the bot cannot see are left out. */
+export async function memberNames(ids: string[]) {
+  const names = new Map<string, string>()
+  if (!client?.isReady()) return names
+  const guild = await client.guilds.fetch(config.discord.guildId!).catch(() => null)
+  if (!guild) return names
+  for (const id of ids) {
+    const member = await guild.members.fetch(id).catch(() => null)
+    if (member) names.set(id, member.displayName)
+  }
+  return names
 }
 
 /** Call after a registration confirms so an already-streaming user starts counting right away. */

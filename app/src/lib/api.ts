@@ -63,6 +63,95 @@ export function getProgress() {
   return request<Progress>('/api/progress')
 }
 
+export type StaffDay = { dayIndex: number; seconds: number; goalSeconds: number; goalMet: boolean; recorded: boolean }
+
+export type StaffParticipant = {
+  discordId: string
+  name: string | null
+  wallet: string
+  multiply: number
+  paidUsdc: number
+  registeredAt: number
+  daysPassed: number
+  recorded: number
+  onChainDays: number
+  passedEveryDay: boolean
+  warnings: number
+  counting: boolean
+  days: StaffDay[]
+  tallied: boolean
+  claimed: boolean
+}
+
+export type StaffChallenge = {
+  track: number
+  name: string
+  challengeId: number
+  startMs: number
+  endMs: number
+  resultsOpenMs: number
+  exists: boolean
+  finalized: boolean
+  rolledOver: boolean
+  entryPoolUsdc: number
+  carryOverUsdc: number
+  winnerCount: number
+  tallied: number
+  claimed: number
+  days: number
+  participants: StaffParticipant[]
+}
+
+export type StaffReport = {
+  id: number
+  track: number
+  challengeId: number
+  reporterId: string
+  targetId: string
+  reason: string | null
+  status: string
+  createdAt: number
+  warned: boolean
+  jurors: { vote: string | null; expired: boolean }[]
+  names: Record<string, string>
+}
+
+export type StaffOverview = {
+  now: number
+  goalSeconds: number
+  challenges: StaffChallenge[]
+  server: {
+    bot: { healthy: boolean; ready: boolean; lastFlushSecondsAgo: number | null; disconnectedSince: string | null }
+    oracle: string
+    oracleSol: number | null
+    faucet: string | null
+    faucetSol: number | null
+    faucetMaxSol: number
+    outages: { startMs: number; endMs: number }[]
+  }
+  reports: StaffReport[]
+}
+
+export function getStaffOverview() {
+  return request<StaffOverview>('/api/staff/overview')
+}
+
+export function staffSendSol(wallet: string, sol: number) {
+  return request<{ sent: boolean; sol: number; signature: string; balance: number }>('/api/staff/send-sol', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wallet, sol }),
+  })
+}
+
+export function staffCreditDay(track: number, challengeId: number, discordId: string, dayIndex: number) {
+  return request<{ credited: boolean; signature: string }>('/api/staff/credit-day', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ track, challengeId, discordId, dayIndex }),
+  })
+}
+
 export function requestTestSol(wallet: string) {
   return request<{ sent: boolean; sol?: number; reason?: string }>('/api/faucet', {
     method: 'POST',

@@ -45,6 +45,7 @@ function idlConstant(name: string): string {
 }
 
 const USDC_MINT = new PublicKey(idlConstant('USDC_MINT'))
+const USDC_DECIMALS = 6
 export const MAX_MULTIPLY = Number(idlConstant('MAX_MULTIPLY'))
 export const MAX_WARNINGS = Number(idlConstant('MAX_WARNINGS'))
 
@@ -365,6 +366,13 @@ export async function addWarning(track: number, challengeId: number, user: Publi
   return sendAsOracle(ix)
 }
 
+/** Warnings for several participants of a challenge, in the order given. */
+export async function warningCounts(track: number, challengeId: number, users: PublicKey[]) {
+  const challenge = challengePda(track, challengeId)
+  const warnings = await program.account.warning.fetchMultiple(users.map((user) => warningPda(challenge, user)))
+  return warnings.map((warning) => warning?.count ?? 0)
+}
+
 /** Warnings a participant has in a challenge. */
 export async function warningCount(track: number, challengeId: number, user: PublicKey) {
   const warning = await program.account.warning.fetchNullable(warningPda(challengePda(track, challengeId), user))
@@ -391,6 +399,9 @@ export async function rollover(track: number, fromId: number, toId: number) {
 export type ParticipantRow = {
   discordId: string
   user: PublicKey
+  multiply: number
+  paidUsdc: number
+  registeredAt: number
   tallied: boolean
   claimed: boolean
   daysCompleted: number
@@ -404,6 +415,9 @@ export async function participantsOf(track: number, challengeId: number): Promis
   return rows.map((row) => ({
     discordId: row.account.discordId.toString(),
     user: row.account.user,
+    multiply: row.account.multiply,
+    paidUsdc: row.account.amountPaid.toNumber() / 10 ** USDC_DECIMALS,
+    registeredAt: row.account.registeredAt.toNumber() * 1000,
     tallied: row.account.tallied,
     claimed: row.account.claimed,
     daysCompleted: row.account.daysCompleted,

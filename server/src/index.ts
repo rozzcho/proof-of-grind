@@ -1,8 +1,8 @@
 import { serve } from '@hono/node-server'
 import { PublicKey } from '@solana/web3.js'
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { auth, getSession } from './auth.ts'
-import { addParticipant, botStatus, dayWindow, grantRole, startBot, tracker } from './bot.ts'
+import { addParticipant, botStatus, dayWindow, grantRole, memberNames, reports, startBot, tracker } from './bot.ts'
 import { botConfigured, config, discordFor, oauthConfigured } from './config.ts'
 import {
   ACTIVE_TRACKS,
@@ -21,9 +21,13 @@ import {
   openChallengeId,
   oracleAddress,
   oracleBalanceSol,
+  recordProgress,
   registeredTracks,
+  resultsOpenMs,
   runningChallengeId,
   trackConfigOf,
+  participantsOf,
+  warningCounts,
 } from './solana.ts'
 
 const app = new Hono()
@@ -195,6 +199,150 @@ app.get('/api/progress', async (c) => {
     currentDay: dayIndexAt(track, challengeId, now),
     days: tracker.challenge(session.discordId, track, challengeId, trackConfigOf(track).days, dayWindow),
   })
+})
+
+/** Staff pages and actions: a Discord session whose id is in ADMIN_DISCORD_IDS. */
+async function admin(c: Context) {
+  const session = await getSession(c)
+  if (!session || !config.adminDiscordIds.includes(session.discordId)) return null
+  return session
+}
+
+/** Everything about a challenge in one place: the chain, the tracker and Discord names. */
+async function challengeReport(track: number, challengeId: number) {
+  const { days, name } = trackConfigOf(track)
+  const [state, participants] = await Promise.all([
+    challengeState(track, challengeId).catch(() => null),
+    participantsOf(track, challengeId).catch(() => []),
+  ])
+  const [warnings, names] = await Promise.all([
+    warningCounts(track, challengeId, participants.map((p) => p.user)).catch(() => participants.map(() => 0)),
+    memberNames(participants.map((p) => p.discordId)),
+  ])
+  const fullMask = (1 << days) - 1
+
+  return {
+    track,
+    name,
+    challengeId,
+    startMs: challengeStartMs(track, challengeId),
+    endMs: challengeEndMs(track, challengeId),
+    resultsOpenMs: resultsOpenMs(track, challengeId),
+    exists: Boolean(state),
+    finalized: state?.finalized ?? false,
+    rolledOver: state?.rolledOver ?? false,
+    entryPoolUsdc: state ? state.totalDeposited.toNumber() / 1e6 : 0,
+    carryOverUsdc: state ? state.carryOver.toNumber() / 1e6 : 0,
+    winnerCount: state?.winnerCount ?? 0,
+    tallied: state?.talliedCount ?? 0,
+    claimed: state?.claimedCount ?? 0,
+    days,
+    participants: participants.map((p, i) => {
+      const progress = tracker.challenge(p.discordId, track, challengeId, days, dayWindow)
+      return {
+        discordId: p.discordId,
+        name: names.get(p.discordId) ?? null,
+        wallet: p.user.toBase58(),
+        multiply: p.multiply,
+        paidUsdc: p.paidUsdc,
+        registeredAt: p.registeredAt,
+        daysPassed: progress.filter((day) => day.goalMet).length,
+        recorded: progress.filter((day) => day.recorded).length,
+        onChainDays: p.daysCompleted,
+        passedEveryDay: (p.daysCompleted & fullMask) === fullMask,
+        warnings: warnings[i] ?? 0,
+        counting: tracker.isActive(p.discordId),
+        days: progress,
+        tallied: p.tallied,
+        claimed: p.claimed,
+      }
+    }),
+  }
+}
+
+app.get('/api/staff/overview', async (c) => {
+  if (!(await admin(c))) return c.json({ error: 'Staff only.' }, 403)
+  const now = Date.now()
+  const challenges = []
+  for (const track of ACTIVE_TRACKS) {
+    const running = runningChallengeId(track)
+    for (const id of new Set([running, openChallengeId(track), running === null ? null : running - 1])) {
+      if (id !== null && id >= 0) challenges.push(await challengeReport(track, id))
+    }
+  }
+  const [oracleSol, faucetSol] = await Promise.all([
+    oracleBalanceSol().catch(() => null),
+    faucetBalanceSol().catch(() => null),
+  ])
+  return c.json({
+    now,
+    goalSeconds: config.dailyGoalSeconds,
+    challenges,
+    server: {
+      bot: botHealth(),
+      oracle: oracleAddress,
+      oracleSol,
+      faucet: faucetAddress,
+      faucetSol,
+      faucetMaxSol: config.staffFaucetMaxSol,
+      outages: tracker.outages().slice(-10).map((o) => ({ startMs: o.start_ms, endMs: o.end_ms })),
+    },
+    reports: await Promise.all(
+      reports.recent(10).map(async (report) => ({
+        ...report,
+        jurors: reports.jurors(report.id).map((juror) => ({ vote: juror.vote, expired: juror.expired })),
+        names: Object.fromEntries(await memberNames([report.reporterId, report.targetId])),
+      })),
+    ),
+  })
+})
+
+// Hands out SOL without waiting for the faucet's one-per-account rule.
+app.post('/api/staff/send-sol', async (c) => {
+  if (!(await admin(c))) return c.json({ error: 'Staff only.' }, 403)
+  if (!faucetConfigured) return c.json({ error: 'No faucet key on this server.' }, 503)
+  const body = await c.req.json().catch(() => ({}))
+  let wallet: PublicKey
+  try {
+    wallet = new PublicKey(body.wallet)
+  } catch {
+    return c.json({ error: 'Invalid wallet address.' }, 400)
+  }
+  const sol = Number(body.sol)
+  if (!Number.isFinite(sol) || sol <= 0 || sol > config.staffFaucetMaxSol) {
+    return c.json({ error: `Send between 0 and ${config.staffFaucetMaxSol} SOL.` }, 400)
+  }
+  try {
+    const { signature } = await sendTestSol(wallet, sol)
+    console.log(`[staff] sent ${sol} SOL to ${wallet.toBase58()}`)
+    return c.json({ sent: true, sol, signature, balance: await walletBalanceSol(wallet) })
+  } catch (err) {
+    console.error('[staff] send-sol', err)
+    return c.json({ error: 'Could not send SOL.' }, 502)
+  }
+})
+
+// For days lost to an outage the automatic handling cannot cover.
+app.post('/api/staff/credit-day', async (c) => {
+  if (!(await admin(c))) return c.json({ error: 'Staff only.' }, 403)
+  const body = await c.req.json().catch(() => ({}))
+  const track = Number(body.track)
+  const challengeId = Number(body.challengeId)
+  const dayIndex = Number(body.dayIndex)
+  const discordId = String(body.discordId ?? '')
+  if (![track, challengeId, dayIndex].every(Number.isInteger) || !discordId) {
+    return c.json({ error: 'Need track, challengeId, discordId and dayIndex.' }, 400)
+  }
+  const participant = (await participantsOf(track, challengeId)).find((p) => p.discordId === discordId)
+  if (!participant) return c.json({ error: 'That account is not registered for this challenge.' }, 404)
+  try {
+    const signature = await recordProgress(track, challengeId, participant.user, dayIndex)
+    console.log(`[staff] credited day ${dayIndex} of track ${track} #${challengeId} to ${discordId}`)
+    return c.json({ credited: true, signature })
+  } catch (err) {
+    console.error('[staff] credit-day', err)
+    return c.json({ error: 'Could not record that day. The record window may have closed.' }, 502)
+  }
 })
 
 // Railway and friends set PORT; listen on every interface so their proxy can reach us.
