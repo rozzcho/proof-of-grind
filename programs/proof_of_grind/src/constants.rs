@@ -42,10 +42,14 @@ pub const MAX_MULTIPLY: u8 = 10;
 #[constant]
 pub const FEE_BPS: u64 = 500;
 
-/// Passed days can still be recorded for this many challenge days after the end (e.g. after a
-/// server outage). Results are tallied only once this window closes.
+/// Passed days can still be recorded for this long after a challenge ends (e.g. after a server
+/// outage). Results are tallied only once this window closes.
 #[constant]
-pub const RECORD_WINDOW_DAYS: i64 = 2;
+pub const RECORD_WINDOW_SECONDS: i64 = 12 * 60 * 60;
+
+/// The test track settles quickly, so its window is two of its 2-minute days.
+#[constant]
+pub const TEST_RECORD_WINDOW_SECONDS: i64 = 2 * TEST_DAY_SECONDS;
 
 /// Winners have 4 weeks after a challenge ends to claim; what is left then goes to the treasury.
 #[constant]
@@ -124,16 +128,13 @@ pub struct TrackConfig {
     pub duration: i64,
     pub day_seconds: i64,
     pub days: u8,
+    /// How long after the end passed days can still be recorded.
+    pub record_window: i64,
     /// Per 1x, in mint base units.
     pub entry_fee: u64,
 }
 
 impl TrackConfig {
-    /// How long after the end passed days can still be recorded: 2 days (2 test "days" on the test track).
-    pub const fn record_window(&self) -> i64 {
-        RECORD_WINDOW_DAYS * self.day_seconds
-    }
-
     /// Bitmask with one bit per day: every bit set means the participant passed the challenge.
     pub const fn full_mask(&self) -> u16 {
         (1u16 << self.days) - 1
@@ -147,6 +148,7 @@ pub const fn track_config(track: u8) -> Option<TrackConfig> {
             duration: WEEK_SECONDS,
             day_seconds: WEEKLY_DAY_SECONDS,
             days: WEEKLY_DAYS,
+            record_window: RECORD_WINDOW_SECONDS,
             entry_fee: WEEKLY_ENTRY_FEE,
         }),
         TRACK_BIWEEKLY => Some(TrackConfig {
@@ -154,6 +156,7 @@ pub const fn track_config(track: u8) -> Option<TrackConfig> {
             duration: BIWEEKLY_DURATION,
             day_seconds: BIWEEKLY_DAY_SECONDS,
             days: BIWEEKLY_DAYS,
+            record_window: RECORD_WINDOW_SECONDS,
             entry_fee: BIWEEKLY_ENTRY_FEE,
         }),
         TRACK_TEST => Some(TrackConfig {
@@ -161,6 +164,7 @@ pub const fn track_config(track: u8) -> Option<TrackConfig> {
             duration: TEST_DURATION,
             day_seconds: TEST_DAY_SECONDS,
             days: TEST_DAYS,
+            record_window: TEST_RECORD_WINDOW_SECONDS,
             entry_fee: TEST_ENTRY_FEE,
         }),
         _ => None,

@@ -77,7 +77,7 @@ These rules apply to every challenge. By registering, you agree to them.
 ## 9. Server outages
 
 - If our server goes down and your camera time can't be counted, the lost time is taken off that day's goal.
-- Passed days can still be recorded until **2 days after the challenge ends**, so a short outage doesn't cost anyone a day.
+- Passed days can still be recorded until **12 hours after the challenge ends**, so a short outage doesn't cost anyone a day.
 - Results are counted after that window closes, and rewards open for claiming.
 
 ## 10. Claiming your reward

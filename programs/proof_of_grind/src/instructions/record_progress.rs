@@ -27,7 +27,7 @@ pub fn handle_record_progress(ctx: Context<RecordProgress>, day_index: u8) -> Re
         .ok_or(ErrorCode::MathOverflow)?;
     let deadline = challenge
         .end_ts
-        .checked_add(config.record_window())
+        .checked_add(config.record_window)
         .ok_or(ErrorCode::MathOverflow)?;
 
     let now = Clock::get()?.unix_timestamp;

@@ -33,7 +33,7 @@ pub fn handle_add_warning(ctx: Context<AddWarning>) -> Result<()> {
     // Only while results are not open yet, so a warning never changes a tally already made.
     let results_open = challenge
         .end_ts
-        .checked_add(config.record_window())
+        .checked_add(config.record_window)
         .ok_or(ErrorCode::MathOverflow)?;
     require!(
         Clock::get()?.unix_timestamp < results_open && !participant.tallied,

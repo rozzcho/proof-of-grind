@@ -28,7 +28,7 @@ pub fn handle_tally(ctx: Context<Tally>) -> Result<()> {
     // Wait for the record window to close, so a day still being recorded cannot be counted as missed.
     let results_open = challenge
         .end_ts
-        .checked_add(config.record_window())
+        .checked_add(config.record_window)
         .ok_or(ErrorCode::MathOverflow)?;
     require!(
         Clock::get()?.unix_timestamp >= results_open,

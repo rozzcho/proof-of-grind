@@ -90,12 +90,17 @@ export function challengeEndMs(track: number, challengeId: number) {
   return challengeStartMs(track, challengeId) + trackConfigOf(track).durationMs
 }
 
-/** Passed days can be recorded for this many days after a challenge ends; tallying waits for it. */
-const RECORD_WINDOW_DAYS = Number(idlConstant('RECORD_WINDOW_DAYS'))
+/** Passed days can be recorded for this long after a challenge ends; tallying waits for it. */
+const RECORD_WINDOW_MS = Number(idlConstant('RECORD_WINDOW_SECONDS')) * 1000
+const TEST_RECORD_WINDOW_MS = Number(idlConstant('TEST_RECORD_WINDOW_SECONDS')) * 1000
+
+export function recordWindowMs(track: number) {
+  return track === TRACK_TEST ? TEST_RECORD_WINDOW_MS : RECORD_WINDOW_MS
+}
 
 /** When a finished challenge can be tallied: after its record window closes. */
 export function resultsOpenMs(track: number, challengeId: number) {
-  return challengeEndMs(track, challengeId) + RECORD_WINDOW_DAYS * trackConfigOf(track).dayMs
+  return challengeEndMs(track, challengeId) + recordWindowMs(track)
 }
 
 /** Challenge taking registrations: the next one to start. */

@@ -1291,13 +1291,13 @@
       "value": "10000"
     },
     {
-      "name": "RECORD_WINDOW_DAYS",
+      "name": "RECORD_WINDOW_SECONDS",
       "docs": [
-        "Passed days can still be recorded for this many challenge days after the end (e.g. after a",
-        "server outage). Results are tallied only once this window closes."
+        "Passed days can still be recorded for this long after a challenge ends (e.g. after a server",
+        "outage). Results are tallied only once this window closes."
       ],
       "type": "i64",
-      "value": "2"
+      "value": "43200"
     },
     {
       "name": "TEST_DAYS",
@@ -1326,6 +1326,14 @@
       ],
       "type": "i64",
       "value": "0"
+    },
+    {
+      "name": "TEST_RECORD_WINDOW_SECONDS",
+      "docs": [
+        "The test track settles quickly, so its window is two of its 2-minute days."
+      ],
+      "type": "i64",
+      "value": "240"
     },
     {
       "name": "TRACK_BIWEEKLY",

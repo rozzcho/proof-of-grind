@@ -64,6 +64,6 @@ export const RULES: Rule[] = [
   { topic: 'Warnings', text: "3 warnings in one challenge and you're out." },
   { topic: 'Fees', text: '5% of the entry pool covers fees. The other 95% is the prize pool.' },
   { topic: 'Prize', text: 'Winners split the prize pool by multiply, rounded down to 0.01 USDC. If nobody wins, it rolls over to the next challenge.' },
-  { topic: 'Outages', text: 'If our server goes down, the lost time comes off that day’s goal. Passed days can be recorded until 2 days after the end.' },
+  { topic: 'Outages', text: 'If our server goes down, the lost time comes off that day’s goal. Passed days can be recorded until 12 hours after the end.' },
   { topic: 'Claiming', text: 'Claim within 4 weeks after the challenge ends. Unclaimed rewards go to the platform.' },
 ]

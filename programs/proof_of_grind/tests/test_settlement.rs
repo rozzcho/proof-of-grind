@@ -3,14 +3,14 @@ mod common;
 use {
     anchor_lang::prelude::Pubkey,
     common::*,
-    proof_of_grind::constants::{track_config, CLAIM_WINDOW_SECONDS, TRACK_BIWEEKLY, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
+    proof_of_grind::constants::{track_config, CLAIM_WINDOW_SECONDS, RECORD_WINDOW_SECONDS, TRACK_BIWEEKLY, TRACK_TEST, TRACK_WEEKLY, USDC_MINT, WEEKLY_LAUNCH_TS, WEEK_SECONDS},
     solana_keypair::Keypair,
     solana_signer::Signer,
 };
 
 const BEFORE_LAUNCH: i64 = WEEKLY_LAUNCH_TS - DAY;
-/// Weekly #0 has ended and its 2-day record window has closed: results can be tallied.
-const AFTER_END: i64 = WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY;
+/// Weekly #0 has ended and its record window has closed: results can be tallied.
+const AFTER_END: i64 = WEEKLY_LAUNCH_TS + WEEK_SECONDS + RECORD_WINDOW_SECONDS;
 
 struct Player {
     keypair: Keypair,
@@ -104,7 +104,7 @@ fn tally_and_claim_need_the_challenge_to_be_over_and_counted() {
     // still running
     set_time(&mut env.svm, WEEKLY_LAUNCH_TS + DAY);
     assert!(send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).is_err());
-    // over, but days can still be recorded for 2 more days
+    // over, but days can still be recorded for a while
     set_time(&mut env.svm, AFTER_END - 1);
     assert!(send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).is_err());
 
@@ -146,13 +146,13 @@ fn progress_cannot_be_recorded_early_or_late() {
     let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 7);
     assert!(send(&mut env.svm, ix, &[&verifier]).is_err());
 
-    // still inside the 2-day record window after the end
-    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY - 1);
+    // still inside the record window after the end
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + RECORD_WINDOW_SECONDS - 1);
     let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 0);
     send(&mut env.svm, ix, &[&verifier]).unwrap();
 
     // the window has closed
-    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + 2 * DAY);
+    set_time(&mut env.svm, WEEKLY_LAUNCH_TS + WEEK_SECONDS + RECORD_WINDOW_SECONDS);
     let ix = record_progress_ix(&verifier.pubkey(), &challenge, &user, 1);
     assert!(send(&mut env.svm, ix, &[&verifier]).is_err());
 }
@@ -248,7 +248,7 @@ fn test_track_runs_a_full_cycle_quickly() {
 
     complete_all_days(&mut env, &challenge, &user.pubkey(), TRACK_TEST);
 
-    set_time(&mut env.svm, start + config.duration + config.record_window());
+    set_time(&mut env.svm, start + config.duration + config.record_window);
     send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
 
     let before = token_amount(&env.svm, &ata(&user.pubkey()));
@@ -273,7 +273,7 @@ fn biweekly_track_charges_10_usdc_and_needs_all_14_days() {
 
     complete_all_days(&mut env, &challenge, &user.pubkey(), TRACK_BIWEEKLY);
 
-    set_time(&mut env.svm, start + config.duration + config.record_window());
+    set_time(&mut env.svm, start + config.duration + config.record_window);
     send(&mut env.svm, tally_ix(&challenge, &user.pubkey()), &[&user]).unwrap();
 
     let before = token_amount(&env.svm, &ata(&user.pubkey()));

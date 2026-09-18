@@ -1297,13 +1297,13 @@ export type ProofOfGrind = {
       "value": "10000"
     },
     {
-      "name": "recordWindowDays",
+      "name": "recordWindowSeconds",
       "docs": [
-        "Passed days can still be recorded for this many challenge days after the end (e.g. after a",
-        "server outage). Results are tallied only once this window closes."
+        "Passed days can still be recorded for this long after a challenge ends (e.g. after a server",
+        "outage). Results are tallied only once this window closes."
       ],
       "type": "i64",
-      "value": "2"
+      "value": "43200"
     },
     {
       "name": "testDays",
@@ -1332,6 +1332,14 @@ export type ProofOfGrind = {
       ],
       "type": "i64",
       "value": "0"
+    },
+    {
+      "name": "testRecordWindowSeconds",
+      "docs": [
+        "The test track settles quickly, so its window is two of its 2-minute days."
+      ],
+      "type": "i64",
+      "value": "240"
     },
     {
       "name": "trackBiweekly",
